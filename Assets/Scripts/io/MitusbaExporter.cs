@@ -8,9 +8,8 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Numerics;
-
-
 using static MitsubaXML;
+
 public class MitusbaExporter
 {
     
@@ -146,7 +145,7 @@ public class MitusbaExporter
         {
             if (mat.HasProperty(diffuseTexProperty))
             {
-                bsdf_plastic.setDiffuseReflectanceTexture("../" + UnityEditor.AssetDatabase.GetAssetPath(mat.GetTexture(diffuseTexProperty)));
+                bsdf_plastic.setDiffuseReflectanceTexture("../" + C2R.Utility.GetAssetPath(mat.GetTexture(diffuseTexProperty)));
                 bsdf_plastic.diffuse_reflectance_tex.scale(tiling.x, tiling.y);
                 bsdf_plastic.diffuse_reflectance_tex.translate(offset.x, offset.y);
                 foundDiffuseTex = true;
@@ -202,7 +201,7 @@ public class MitusbaExporter
         {
             if (mat.HasProperty(normalMapProperty))
             {
-                normalMap = "../" + UnityEditor.AssetDatabase.GetAssetPath(mat.GetTexture(normalMapProperty));
+                normalMap = "../" + C2R.Utility.GetAssetPath(mat.GetTexture(normalMapProperty));
                 XMLBSDF_NormalMap normalMapBSDF = new XMLBSDF_NormalMap(normalMap, bsdf_plastic, tiling, offset);
                 return normalMapBSDF;
             }
@@ -238,7 +237,7 @@ public class MitusbaExporter
         string normalMap;
         if (mat.HasProperty("Texture2D_520ACDA6"))
         {
-            normalMap = "../" + UnityEditor.AssetDatabase.GetAssetPath(mat.GetTexture("Texture2D_520ACDA6"));
+            normalMap = "../" + C2R.Utility.GetAssetPath(mat.GetTexture("Texture2D_520ACDA6"));
             UnityEngine.Vector4 tiling = new UnityEngine.Vector4(1, 1, 1, 1);
             UnityEngine.Vector4 offset = new UnityEngine.Vector4(0, 0, 0, 0);
             XMLBSDF_NormalMap normalMapBSDF = new XMLBSDF_NormalMap(normalMap, bsdf_plastic, tiling, offset);
@@ -258,7 +257,7 @@ public class MitusbaExporter
     //{
     //    XMLBSDF bsdf = new XMLBSDF();
 
-    //    string texPath = "../" + UnityEditor.AssetDatabase.GetAssetPath(mat.GetTexture("Texture2D_D9FF89B8"));
+    //    string texPath = "../" + C2R.Utility.GetAssetPath(mat.GetTexture("Texture2D_D9FF89B8"));
     //    bsdf.setDiffuseReflectanceTexture(texPath);
 
 

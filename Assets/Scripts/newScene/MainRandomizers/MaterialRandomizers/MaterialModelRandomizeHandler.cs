@@ -4,10 +4,16 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Material Model")]
-public class MaterialModelRandomizeHandler : MaterialRandomizerInterface
+public class MaterialModelRandomizeHandler : MaterialRandomizerInterface, IDatasetUser<MaterialModelRandomizeData>
 {
-    //private RandomNumberGenerator rng;
-    public MaterialModelRandomizeData dataset;
+    [SerializeField] private MaterialModelRandomizeData dataset;
+
+    public MaterialModelRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -31,10 +37,5 @@ public class MaterialModelRandomizeHandler : MaterialRandomizerInterface
         var temp = textures.rend.materials;
         temp[textures.materialIndex] = materials[rng.IntRange(0, materials.Length)];
         textures.rend.materials = temp;
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

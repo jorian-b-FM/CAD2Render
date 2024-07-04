@@ -5,10 +5,16 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Rust generation")]
-public class RustGenerationHandler : MaterialRandomizerInterface
+public class RustGenerationHandler : MaterialRandomizerInterface, IDatasetUser<RustGenerationData>
 {
-    //private RandomNumberGenerator rng;
-    public RustGenerationData dataset;
+    [SerializeField] private RustGenerationData dataset;
+
+    public RustGenerationData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
 
@@ -93,10 +99,5 @@ public class RustGenerationHandler : MaterialRandomizerInterface
             else
                 Graphics.Blit(dataset.RustCreationZoneTexture, RustZoneTexture);
         }
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

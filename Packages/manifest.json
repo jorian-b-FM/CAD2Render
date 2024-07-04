@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "com.sneakysquirrellabs.minmaxrangeattribute": "https://github.com/matheusamazonas/min_max_range_attribute.git?path=Assets/Libraries/MinMaxRangeAttribute#latest",
+    "com.sneakysquirrellabs.minmaxrangeattribute": "1.0.1",
+    "org.khronos.unitygltf": "2.12.0",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.2d.tilemap": "1.0.0",
     "com.unity.ads": "4.4.2",
@@ -51,5 +52,15 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0"
-  }
+  },
+  "scopedRegistries": [
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.sneakysquirrellabs.minmaxrangeattribute",
+		"org.khronos.unitygltf"
+      ]
+    }
+  ]
 }

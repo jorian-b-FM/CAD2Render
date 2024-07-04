@@ -5,12 +5,19 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/ManufacturingLines")]
-public class ManufacturingLinesHandler : MaterialRandomizerInterface
+public class ManufacturingLinesHandler : MaterialRandomizerInterface, IDatasetUser<ManufacturingLinesData>
 {
+    [SerializeField] private ManufacturingLinesData dataset;
+
+    public ManufacturingLinesData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     //private RandomNumberGenerator rng;
     private ComputeShader LineTextureGenerationShader;
     private RenderTexture LineZoneTexture;
-    public ManufacturingLinesData dataset;
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -63,10 +70,5 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface
             else
                 Graphics.Blit(dataset.LineCreationZoneTexture, LineZoneTexture);
         }
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

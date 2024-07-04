@@ -239,8 +239,17 @@ namespace SimpleJSON
             return false;
         }
 
-        public virtual JSONNode GetValueOrDefault(string aKey, JSONNode aDefault)
+        
+        public virtual bool TryGetValue(string aKey, out JSONNode value)
         {
+            value = default;
+            return false;
+            
+        }
+        public JSONNode GetValueOrDefault(string aKey, JSONNode aDefault)
+        {
+            if (TryGetValue(aKey, out JSONNode result))
+                return result;
             return aDefault;
         }
 
@@ -971,12 +980,9 @@ namespace SimpleJSON
             return m_Dict.ContainsKey(aKey);
         }
 
-        public override JSONNode GetValueOrDefault(string aKey, JSONNode aDefault)
+        public override bool TryGetValue(string aKey, out JSONNode value)
         {
-            JSONNode res;
-            if (m_Dict.TryGetValue(aKey, out res))
-                return res;
-            return aDefault;
+            return m_Dict.TryGetValue(aKey, out value);
         }
 
         public override IEnumerable<JSONNode> Children

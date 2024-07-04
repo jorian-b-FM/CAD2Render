@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using SimpleJSON;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -143,7 +144,8 @@ namespace Assets.Scripts.newScene
             HDRISky sky;
             renderSettings.GetComponent<Volume>().profile.TryGet<HDRISky>(out sky);
 
-            string environmentMap = UnityEditor.AssetDatabase.GetAssetPath(sky.hdriSky.value);
+            string environmentMap = C2R.Utility.GetAssetPath(sky.hdriSky.value);
+            
             float env_exposure = 2.0f * (sky.exposure.value + 1.0f);
             float env_angle = sky.rotation.value;
 
@@ -210,21 +212,31 @@ namespace Assets.Scripts.newScene
             writer.Flush();
             writer.Close();
 
-            if (dataset.renderProfile)
-                System.IO.File.Copy(AssetDatabase.GetAssetPath(dataset.renderProfile), dataset.outputPath + metadataPath + dataset.renderProfile.name + ".asset", true);
-            if (dataset.rayTracingProfile)
-                System.IO.File.Copy(AssetDatabase.GetAssetPath(dataset.rayTracingProfile), dataset.outputPath + metadataPath + dataset.rayTracingProfile.name + ".asset", true);
-            if (dataset.postProcesingProfile)
-                System.IO.File.Copy(AssetDatabase.GetAssetPath(dataset.postProcesingProfile), dataset.outputPath + metadataPath + dataset.postProcesingProfile.name + ".asset", true);
-            System.IO.File.Copy(AssetDatabase.GetAssetPath(dataset), dataset.outputPath + metadataPath + dataset.name + ".asset", true);
+            WriteDataFile(dataset.renderProfile, metadataPath);
+            WriteDataFile(dataset.rayTracingProfile, metadataPath);
+            WriteDataFile(dataset.postProcesingProfile, metadataPath);
+            WriteDataFile(dataset, metadataPath);
 
-            foreach(RandomizerInterface randomizer in generator.GetComponentsInChildren<RandomizerInterface>())
-                if(randomizer.getDataset() != null)
-                    System.IO.File.Copy(AssetDatabase.GetAssetPath(randomizer.getDataset()), dataset.outputPath + metadataPath + randomizer.getDataset().name + ".asset", true);
+            foreach (RandomizerInterface randomizer in generator.GetComponentsInChildren<RandomizerInterface>())
+                WriteDataFile(randomizer.GetDataset(), metadataPath);
 
             foreach (MaterialRandomizerInterface randomizer in generator.GetComponentsInChildren<MaterialRandomizerInterface>())
-                if (randomizer.getDataset() != null)
-                    System.IO.File.Copy(AssetDatabase.GetAssetPath(randomizer.getDataset()), dataset.outputPath + metadataPath + randomizer.getDataset().name + ".asset", true);
+                WriteDataFile(randomizer.GetDataset(), metadataPath);
+        }
+
+        private void WriteDataFile(UnityEngine.Object data, string metadataPath)
+        {
+            if (data == null)
+                return;
+            
+            var fileName = dataset.outputPath + metadataPath + data.name;
+            string json = JsonUtility.ToJson(data);
+            File.WriteAllText(fileName + ".json", json);
+#if UNITY_EDITOR
+            var assetPath = AssetDatabase.GetAssetPath(data);
+            if (!string.IsNullOrEmpty(assetPath))
+                System.IO.File.Copy(assetPath, fileName + ".asset", true);
+#endif
         }
 
         private bool checkKeypointVisibility(Mesh keypoint, Transform child)

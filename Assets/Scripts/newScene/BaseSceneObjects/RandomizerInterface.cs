@@ -10,16 +10,54 @@ using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
+public interface IDatasetUser
+{
+    ScriptableObject GetDataset();
+    void SetDataset(ScriptableObject so);
+    Type GetDataSetType();
+}
+
+public interface IDatasetUser<T> : IDatasetUser
+    where T: ScriptableObject
+{
+    T Dataset { get; set; }
+
+    ScriptableObject IDatasetUser.GetDataset()
+    {
+        return Dataset;
+    }
+    
+    void IDatasetUser.SetDataset(ScriptableObject so)
+    {
+        Dataset = so as T;
+    }
+
+    Type IDatasetUser.GetDataSetType()
+    {
+        return typeof(T);
+    }
+}
+
 public abstract class RandomizerInterface : MonoBehaviour
 {
     public abstract void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null);
 
     [Obsolete("exports are now selected by using the ExportInstanceInfo tag")]
     public virtual List<GameObject> getExportObjects() { return new List<GameObject>(); }
-    public abstract ScriptableObject getDataset();
+    
     public bool addRandomizeButton = true;
 
-    protected MainRandomizerData.RandomizerTypes randomizerType = MainRandomizerData.RandomizerTypes.Default;
+    private Button _randomizeButton;
+    private ScrollView _buttonList;
+
+    protected virtual void OnDestroy()
+    {
+        if (_buttonList != null && _randomizeButton != null)
+            _buttonList.Remove(_randomizeButton);
+    }
+
+
+    public abstract MainRandomizerData.RandomizerTypes randomizerType { get; }
     public bool updateCheck(uint currentUpdate, MainRandomizerData.RandomizerUpdateIntervals[] updateIntervals = null)
     {
         if (updateIntervals == null)
@@ -84,21 +122,28 @@ public abstract class RandomizerInterface : MonoBehaviour
             Debug.LogWarning("UIDocument not found in the GUI while linking buttons");
             return;
         }
-        ScrollView buttonList = UIDoc.rootVisualElement.Q<ScrollView>(listName);
-        if (buttonList ==  null)
+        _buttonList = UIDoc.rootVisualElement.Q<ScrollView>(listName);
+        if (_buttonList ==  null)
         {
             Debug.LogWarning(listName + " not found in the GUI while linking buttons");
             return;
         }
 
-        Button button = new Button();
-        button.text = this.name;
+        _randomizeButton = new Button();
+        _randomizeButton.text = this.name;
         RandomNumberGenerator rng = new RandomNumberGenerator((int)System.DateTime.Now.Ticks);
-        button.RegisterCallback<ClickEvent>(ev => Randomize(ref rng));
+        _randomizeButton.RegisterCallback<ClickEvent>(ev => Randomize(ref rng));
 
-        buttonList.Add(button);
+        _buttonList.Add(_randomizeButton);
     }
 
+    public ScriptableObject GetDataset()
+    {
+        if (this is IDatasetUser datasetUser)
+            return datasetUser.GetDataset();
+        return null;
+    }
+    
     public static void CloneDataset<T>(ref T dataset) where T : UnityEngine.Object
     {
         var newDataset = Instantiate(dataset);
@@ -109,8 +154,10 @@ public abstract class RandomizerInterface : MonoBehaviour
             newDataset.name = dataset.name.Substring(0, dataset.name.Length - result.Value.Length) + (Int32.Parse(result.Value) + 1);
 
         string newDatasetFile = Path.GetDirectoryName(SceneManager.GetActiveScene().path) + "/" + newDataset.name + ".asset";
+#if UNITY_EDITOR
         AssetDatabase.CreateAsset(newDataset, newDatasetFile);
         AssetDatabase.SaveAssets();
+#endif
         dataset = newDataset;
     }
 }

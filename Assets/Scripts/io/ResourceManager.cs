@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Assets.Scripts.io
 {
@@ -17,7 +18,7 @@ namespace Assets.Scripts.io
             return type.ToString() + "?" +  path;// ?  should be an illegal character in a path name so should never make conflicts
         }
 
-        public static T[] LoadAll<T>(string  path)
+        public static T[] LoadAll<T>(string  path) where T: Object
         {
             UnityEngine.Object[] list;
             if (!LoadedData.TryGetValue(makeHashCode(path, typeof(T)), out list))
@@ -29,6 +30,11 @@ namespace Assets.Scripts.io
                 LoadedData.Add(makeHashCode(path, typeof(T)), list);
             }
             return list.Cast<T>().ToArray();
+        }
+
+        public static void RegisterSet<T>(string path, T[] list) where T: Object
+        {
+            LoadedData.Add(makeHashCode(path, typeof(T)), list);
         }
 
         private static Dictionary<string, ComputeShader> loadedShaders = new Dictionary<string, ComputeShader>();

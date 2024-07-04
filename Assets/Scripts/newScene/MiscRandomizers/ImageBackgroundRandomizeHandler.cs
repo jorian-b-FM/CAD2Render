@@ -6,15 +6,23 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 
-public class ImageBackgroundRandomizeHandler : RandomizerInterface
+public class ImageBackgroundRandomizeHandler : RandomizerInterface, IDatasetUser<ImageBackgroundRandomizeData>
 {
-    public ImageBackgroundRandomizeData dataset;
+    [SerializeField] private ImageBackgroundRandomizeData dataset;
+
+    public ImageBackgroundRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
     {
         RandomizerInterface.CloneDataset(ref dataset);
     }
+
 
     private Vector3 up = new Vector3(0.0f, 1.0f, 0.0f);
     private Camera _camera;
@@ -31,9 +39,10 @@ public class ImageBackgroundRandomizeHandler : RandomizerInterface
     }
 
     private Texture2D[] backgroundTextures = new Texture2D[0];
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Light;
+
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Light;
         this.LinkGui();
 
         if (dataset.backgroundImagePath != "")
@@ -74,11 +83,6 @@ public class ImageBackgroundRandomizeHandler : RandomizerInterface
             background.mainTexture = backgroundTextures[0];
         else
             Debug.LogWarning("No background images found");
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 
 }

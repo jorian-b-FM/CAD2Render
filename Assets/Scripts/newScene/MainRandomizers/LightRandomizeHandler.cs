@@ -7,9 +7,16 @@ using UnityEngine.Rendering.HighDefinition;
 
 
 [AddComponentMenu("Cad2Render/Light Randomize Handler")]
-public class LightRandomizeHandler : RandomizerInterface
+public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRandomizeData>
 {
-    public LightRandomizeData dataset;
+    [SerializeField] private LightRandomizeData dataset;
+
+    public LightRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -24,10 +31,11 @@ public class LightRandomizeHandler : RandomizerInterface
     GameObject renderSettings = null;
 
     private int LightIndex = 0;
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Light;
 
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Light;
         this.LinkGui();
 
         if (dataset.environmentsPath != "")
@@ -51,12 +59,7 @@ public class LightRandomizeHandler : RandomizerInterface
 
         instantiatedLights = new List<Light>();
     }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
-    }
-
+    
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         if (dataset.environmentVariatons)

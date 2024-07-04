@@ -36,23 +36,55 @@ public class TextureResampler
         {
             using (var key = Registry.LocalMachine.OpenSubKey("SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers", false)) // False to run without admin rights (read only)
             {
-                if( key != null)
+                if (key == null)
+                    return;
+                
+                Int32 TdrDdiDelay = (Int32) key.GetValue("TdrDdiDelay", 0);
+                Int32 TdrDelay = (Int32)key.GetValue("TdrDelay", 0);
+                if (TdrDelay < 30 || TdrDdiDelay < 30)
                 {
-                    Int32 TdrDdiDelay = (Int32) key.GetValue("TdrDdiDelay", 0);
-                    Int32 TdrDelay = (Int32)key.GetValue("TdrDelay", 0);
-                    if (TdrDelay < 30 || TdrDdiDelay < 30)
-                    {
-                        TdrDelay_registerFixed = !EditorUtility.DisplayDialog("TdrDelay", "The TdrDelay or TdrDdiDelay registry values at\n" + "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers" + "\nare not set or below 30(s).\nThis might cause unity to crash when using the texture resampler (Losing unsaved changes)", "Don't use the resampler", "I understand");
-                    }
-                    else
-                        TdrDelay_registerFixed = true;
+                    ShowDialog();
                 }
+                else
+                    TdrDelay_registerFixed = true;
             }
         }
         catch (Exception ex)
         {
-            TdrDelay_registerFixed = !EditorUtility.DisplayDialog("TdrDelay", "The TdrDelay or TdrDdiDelay registry values at\n" + "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers" + "\nare not set or below 30(s).\nThis might cause unity to crash when using the texture resampler (Losing unsaved changes)", "Don't use the resampler", "I understand");
+            ShowDialog();
         }
+    }
+
+    private void ShowDialog()
+    {
+        // TdrDelay_registerFixed = !EditorUtility.DisplayDialog(
+        //     "TdrDelay", 
+        //     "The TdrDelay or TdrDdiDelay registry values at\n" + "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers" + "\nare not set or below 30(s).\nThis might cause unity to crash when using the texture resampler (Losing unsaved changes)",
+        //     "Don't use the resampler", 
+        //     "I understand");
+
+        Dialog.Show("TdrDelay",
+            "The TdrDelay or TdrDdiDelay registry values at\n" +
+            "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers" +
+            "\nare not set or below 30(s).\nThis might cause unity to crash when using the texture resampler (Losing unsaved changes)",
+            new DialogButtonData
+            {
+                Text = "Don't use the resampler",
+                Action = x =>
+                {
+                    TdrDelay_registerFixed = false;
+                    x.Close();
+                }
+            },
+            new DialogButtonData
+            {
+                Text = "I understand",
+                Action = x =>
+                {
+                    TdrDelay_registerFixed = true;
+                    x.Close();
+                }
+            });
     }
 
     public void ResampleTexture(MaterialTextures textures, Texture sampleTexture, MaterialTextures.MapTypes type, ref RandomNumberGenerator rng)

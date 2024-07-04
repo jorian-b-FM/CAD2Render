@@ -8,22 +8,28 @@ using UnityEngine.Rendering;
 using System.IO;
 
 using System;
-using UnityEditor.UIElements;
-using UnityEditor;
 using Assets.Scripts.newScene;
 using UnityEngine.UIElements;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using UnityEngine.SceneManagement;
 
 //using UnityEngine.Profiling;
 
 
 [AddComponentMenu("Cad2Render/Main Randomizer")]
-public class MainRandomizer : MonoBehaviour
+public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 {
     [Header("Dataset")]
     [Tooltip("DatasetInformation containing settings for data generation.")]
-    public MainRandomizerData dataset;
+    [SerializeField] private MainRandomizerData dataset;
+
+    public MainRandomizerData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -38,9 +44,7 @@ public class MainRandomizer : MonoBehaviour
     private RenderTexture albedoTexture = null;
     private RenderTexture normalTexture = null;
     private RenderTexture depthTexture = null;
-    
-    
-    
+
 
     private Camera _mainCamera;
     private Camera mainCamera { get { if (_mainCamera == null) _mainCamera = Camera.main; return _mainCamera; } }
@@ -56,18 +60,21 @@ public class MainRandomizer : MonoBehaviour
 
     private int currentFrame = -2;
     bool capturing = false;
+    private bool _initialized;
 
     static public GameObject renderSettings { get; private set; }
     static public GameObject raytracingSettings { get; private set; }
     static public GameObject postProcesingSettings { get; private set; }
 
     // Start is called before the first frame update
-    void Start()
+    async void Start()
     {
-
-        if (!checkDatasetSettings())
-        {
+        var result = await checkDatasetSettings();
+        if (!result)
+        { 
+#if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
+#endif
             Application.Quit();
             return;
         }
@@ -117,6 +124,7 @@ public class MainRandomizer : MonoBehaviour
         BOPDatasetExporter.setDepthScale(dataset.maxDepthDistance);
 
         setupGui();
+        _initialized = true;
     }
 
     private bool loadNextBopScene()
@@ -142,7 +150,7 @@ public class MainRandomizer : MonoBehaviour
         return true;
     }
 
-    private bool checkDatasetSettings()
+    private async Task<bool> checkDatasetSettings()
     {
         if (dataset == null)
         {
@@ -160,22 +168,41 @@ public class MainRandomizer : MonoBehaviour
 
         if (!Directory.Exists(dataset.outputPath))
         {
-            if (!string.IsNullOrEmpty(dataset.outputPath) && EditorUtility.DisplayDialog("output path", "The output directory does not exists, do you want to create it?\nOutput path: " + Path.GetFullPath(dataset.outputPath), "Create directory", "Terminate program"))
+            if (!string.IsNullOrEmpty(dataset.outputPath))
             {
-                try
+                var dialog = Dialog.Show("output path",
+                    "The output directory does not exists, do you want to create it?\nOutput path: " +
+                    Path.GetFullPath(dataset.outputPath),
+                    new DialogButtonData
+                    {
+                        Text = "Create directory",
+                        Action = x =>
+                        {
+                            try
+                            {
+                                Directory.CreateDirectory(dataset.outputPath);
+                                x.Close();
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogError("Output directory creation failed. " + e.Message);
+                                x.QuitApplication();
+                            }
+                        }
+                    }, new DialogButtonData
+                    {
+                        Text = "Terminate program",
+                        Action = x =>
+                        {
+                            Debug.LogError("Output path for generated data not specified or does not exist");
+                            x.QuitApplication();
+                        }
+                    });
+
+                while (dialog.IsActive)
                 {
-                    Directory.CreateDirectory(dataset.outputPath);
+                    await Task.Delay(50);
                 }
-                catch (Exception e)
-                {
-                    Debug.LogError("Output directory creation failed. " + e.Message);
-                    return false;
-                }
-            }
-            else
-            {
-                Debug.LogError("Output path for generated data not specified or does not exist");
-                return false;
             }
         }
 
@@ -192,6 +219,9 @@ public class MainRandomizer : MonoBehaviour
 
     void Update()
     {
+        if (!_initialized)
+            return;
+        
         if (currentFrame == -2)
         {
             currentFrame = 0;
@@ -431,7 +461,8 @@ public class MainRandomizer : MonoBehaviour
 
     private void OnDestroy()
     {
-        UIDoc.panelSettings.clearColor = false;
+        if (UIDoc)
+            UIDoc.panelSettings.clearColor = false;
     }
 
     public void recordButtonClicked()
