@@ -90,7 +90,7 @@ namespace C2R
                 childObject[meshName] = new JSONObject
                 {
                     [assetName] = modelFile,
-                    [nameof(meshFilter.sharedMesh)] = meshFilter.sharedMesh.name
+                    [nameof(meshFilter.sharedMesh)] = meshFilter.name
                 };
             }
 

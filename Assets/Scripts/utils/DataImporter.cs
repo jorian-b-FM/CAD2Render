@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using C2R;
@@ -177,20 +178,49 @@ public class DataImporter : MonoBehaviour
 
     private static async Task CreateMesh(JSONNode node, GameObject go)
     {
-        Mesh mesh = null;
-
         JSONNode valueNode;
         if (node.TryGetValue(assetName, out valueNode))
         {
             string meshPath = valueNode;
 
-            var component = go.AddComponent<GLTFComponent>();
-            component.GLTFUri = meshPath;
+            var meshes = await LoadedModelsFactory.LoadModel(meshPath);
+            var createdFilters = new List<MeshFilter>();
 
-            await component.Load();
+            if (node.TryGetValue(nameof(MeshFilter.sharedMesh), out valueNode))
+            {
+                string submeshName = valueNode;
+                var mesh = meshes.FirstOrDefault(x => x.name == submeshName);
+
+                if (mesh == null)
+                    Logger.LogError($"Could not find mesh '{submeshName}' in '{meshPath}'");
+                
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                
+                createdFilters.Add(filter);
+            }
+            else
+            {
+                foreach (var mesh in meshes)
+                {
+                    var submeshGO = new GameObject();
+                    submeshGO.transform.SetParent(go.transform);
+                    var filter = submeshGO.AddComponent<MeshFilter>();
+                    filter.sharedMesh = mesh;
+                    
+                    createdFilters.Add(filter);
+                }
+            }
+
+            foreach (var filter in createdFilters)
+            {
+                if (filter.sharedMesh == null)
+                    continue;
+                
+                var renderer = filter.gameObject.AddComponent<MeshRenderer>();
+                renderer.sharedMaterials = new Material[filter.sharedMesh.subMeshCount];
+            }
             
-            Destroy(component);
-
             Debug.Log("GLTF file imported successfully.");
         }
     }
