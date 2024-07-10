@@ -20,7 +20,7 @@ public static class ConstDataValues
     public const string typeName = "Type";
     public const string dataName = "Data";
     public const string linksName = "Links";
-    public const string colliderName = "Collider";
+    public const string collidersName = "Colliders";
     public const string meshName = "Mesh";
     public const string rigidBodyName = "RigidBody";
     public const string assetName = "Asset";
@@ -37,9 +37,17 @@ public class DataImporter : MonoBehaviour
     public ScriptableObject[] defaultDataObjects;
     private Dictionary<Type, ScriptableObject> _defaultObjectByType;
 
-    void Awake()
+    private GameObject _fakeResources;
+
+    async void Awake()
     {
         if (!loadFromFolder) return;
+
+        _fakeResources = new GameObject("[GENERATED] Fake Resources");
+        _fakeResources.SetActive(false);
+
+        bool wasActive = gameObject.activeSelf;
+        gameObject.SetActive(false);
 
         _defaultObjectByType = new Dictionary<Type, ScriptableObject>();
         foreach (var defaultDataObject in defaultDataObjects)
@@ -58,10 +66,12 @@ public class DataImporter : MonoBehaviour
             _fullFolderPath = Path.Combine(Application.dataPath, "..", folderPathToLoad);
         _fullFolderPath = Path.GetFullPath(_fullFolderPath);
 
-        LoadFromDirectory(_fullFolderPath);
+        await LoadFromDirectory(_fullFolderPath);
+
+        gameObject.SetActive(wasActive || gameObject.activeSelf);
     }
 
-    private async void LoadFromDirectory(string folder)
+    private async Task LoadFromDirectory(string folder)
     {
         if (!Directory.Exists(folder)) return;
 
@@ -159,8 +169,8 @@ public class DataImporter : MonoBehaviour
         if (node.TryGetValue(childrenName, out JSONNode childrenNode))
             await TryCreateChildren(childrenNode, child);
 
-        if (node.TryGetValue(colliderName, out JSONNode colliderNode))
-            SetupCollider(colliderNode, childGO);
+        if (node.TryGetValue(collidersName, out JSONNode colliderNode))
+            SetupColliders(colliderNode, childGO);
         
         if (node.TryGetValue(randomizerName, out JSONNode randomizerNode))
             await CreateRandomizers(randomizerNode, childGO);
@@ -229,6 +239,19 @@ public class DataImporter : MonoBehaviour
             
             Debug.Log("GLTF file imported successfully.");
         }
+    }
+
+    private static void SetupColliders(JSONNode collidersNode, GameObject target)
+    {
+        if (collidersNode is not JSONArray)
+        {
+            Logger.LogError($"Expected Array for '{collidersName}' in '{target.name}'");
+            return;
+        }
+
+        // Loop over all children and parse them into creating MonoBehaviours
+        foreach (var node in collidersNode.Children)
+            SetupCollider(node, target);
     }
 
     private static void SetupCollider(JSONNode node, GameObject go)
@@ -332,11 +355,12 @@ public class DataImporter : MonoBehaviour
 
                             for (var i = 0; i < objectJsons.Length; i++)
                             {
-                                var json = objectJsons[i];
-                                var childName = Path.GetFileNameWithoutExtension(json);
+                                var jsonPath = objectJsons[i];
+                                var childName = Path.GetFileNameWithoutExtension(jsonPath);
+                                var json = await File.ReadAllTextAsync(jsonPath);
                                 var objectNode = JSON.Parse(json);
 
-                                objects[i] = await TryCreateChild(childName, objectNode, target.transform);
+                                objects[i] = await TryCreateChild(childName, objectNode, _fakeResources.transform);
                             }
 
                             // Note: use path and not fullPath here as we want to override the result of the dataset
@@ -403,7 +427,7 @@ public class DataImporter : MonoBehaviour
         }
         
         if (node.TryGetValue(datasetName, out JSONNode dataNode))
-            JsonUtility.FromJsonOverwrite(dataNode, so);
+            JsonUtility.FromJsonOverwrite(dataNode.ToString(), so);
         datasetUser.SetDataset(so);
         return true;
     }

@@ -3,7 +3,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Assets.Scripts.io;
 using SimpleJSON;
 using UnityEditor;
@@ -80,48 +79,53 @@ namespace C2R
                 }
             };
 
-            if (o.TryGetComponent(out Collider collider))
+            var colliders = o.GetComponents<Collider>();
+
+            if (colliders.Any())
             {
-                // Collider is an engine type and JsonUtility does not work for those
-                // So we have to do it manually
-                var colliderObject = new JSONObject
+                var colliderArray = new JSONArray();
+                foreach (var collider in colliders)
                 {
-                    [nameof(collider.isTrigger)] = collider.isTrigger,
+                    // Collider is an engine type and JsonUtility does not work for those
+                    // So we have to do it manually
+                    var colliderObject = new JSONObject
+                    {
+                        [nameof(collider.isTrigger)] = collider.isTrigger,
 
-                };
-                switch (collider)
-                {
-                    case MeshCollider meshCollider:
-                        colliderObject[typeName] = nameof(MeshCollider);
-                        break;
-                    case BoxCollider boxCollider:
-                        colliderObject[typeName] = nameof(BoxCollider);
-                        colliderObject[nameof(boxCollider.center)] = boxCollider.center;
-                        colliderObject[nameof(boxCollider.size)] = boxCollider.size;
-                        break;
-                    case SphereCollider sphereCollider:
-                        colliderObject[typeName] = nameof(SphereCollider);
-                        colliderObject[nameof(sphereCollider.radius)] = sphereCollider.radius;
-                        colliderObject[nameof(sphereCollider.center)] = sphereCollider.center;
-                        break;
-                    case CapsuleCollider capsuleCollider:
-                        colliderObject[typeName] = nameof(CapsuleCollider);
-                        colliderObject[nameof(capsuleCollider.radius)] = capsuleCollider.radius;
-                        colliderObject[nameof(capsuleCollider.center)] = capsuleCollider.center;
-                        colliderObject[nameof(capsuleCollider.height)] = capsuleCollider.height;
-                        colliderObject[nameof(capsuleCollider.direction)] = capsuleCollider.direction;
-                        break;
-                    default:
-                        if (collider != null)
-                            Debug.LogWarning($"No support (yet) for collider type: {collider.GetType()}");
-                        break;
+                    };
+                    switch (collider)
+                    {
+                        case MeshCollider meshCollider:
+                            colliderObject[typeName] = nameof(MeshCollider);
+                            break;
+                        case BoxCollider boxCollider:
+                            colliderObject[typeName] = nameof(BoxCollider);
+                            colliderObject[nameof(boxCollider.center)] = boxCollider.center;
+                            colliderObject[nameof(boxCollider.size)] = boxCollider.size;
+                            break;
+                        case SphereCollider sphereCollider:
+                            colliderObject[typeName] = nameof(SphereCollider);
+                            colliderObject[nameof(sphereCollider.radius)] = sphereCollider.radius;
+                            colliderObject[nameof(sphereCollider.center)] = sphereCollider.center;
+                            break;
+                        case CapsuleCollider capsuleCollider:
+                            colliderObject[typeName] = nameof(CapsuleCollider);
+                            colliderObject[nameof(capsuleCollider.radius)] = capsuleCollider.radius;
+                            colliderObject[nameof(capsuleCollider.center)] = capsuleCollider.center;
+                            colliderObject[nameof(capsuleCollider.height)] = capsuleCollider.height;
+                            colliderObject[nameof(capsuleCollider.direction)] = capsuleCollider.direction;
+                            break;
+                        default:
+                            if (collider != null)
+                                Debug.LogWarning($"No support (yet) for collider type: {collider.GetType()}");
+                            break;
+                    }
+                    colliderArray.Add(colliderObject);
                 }
-
-                childObject[colliderName] = colliderObject;
+                childObject[collidersName] = colliderArray;
             }
 
-
-            // If we have any meshfilters as children, they will be exported.
+            // If we have any MeshFilters as children, they will be exported.
             // I prefer not having 500 mesh files so group them all
             bool hasData = !meshData.Equals(default(MeshData));
             if (!hasData && o.GetComponentsInChildren<MeshFilter>().Any())
@@ -129,21 +133,20 @@ namespace C2R
                 meshData = new MeshData
                 {
                     Root = o,
-                    FileName = ExportModel(o, false)
+                    FileName = ExportModel(o, false),
+                    TreeLocation = o.name
                 };
             }
             else if (hasData)
-            {
                 meshData.TreeLocation = GetCurrentPath(meshData, o.name);
-            }
-            
+
             var meshFilter = o.GetComponent<MeshFilter>();
             if (meshFilter != null)
             {
                 childObject[meshName] = new JSONObject
                 {
                     [assetName] = meshData.FileName,
-                    [nameof(meshFilter.sharedMesh)] = GetCurrentPath(meshData, meshFilter.name)
+                    [nameof(meshFilter.sharedMesh)] = meshData.TreeLocation
                 };
             }
             
@@ -225,15 +228,21 @@ namespace C2R
         private string ExportModel(Transform o, bool binary = true)
         {
             var export = new GLTFast.Export.GameObjectExport();
+            
+            // Instantiate it & reset transform
+            var clone = Instantiate(o, null, false);
+            clone.name = o.name;
+            clone.gameObject.SetActive(true);
             export.AddScene(new[]
             {
-                o.gameObject
-            });
-            
+                clone.gameObject
+            }, clone.worldToLocalMatrix, o.name);
+            DestroyImmediate(clone.gameObject);
+
             string sceneName = o.name;
             var ext = binary ? ".glb" : ".gltf";
             var resultFile = ToSafeFilename(_fullFolderPath, sceneName, ext);
-            var fileName = Path.GetFileNameWithoutExtension(resultFile);
+            var fileName = Path.GetFileName(resultFile);
             export.SaveToFileAndDispose(resultFile);
             return fileName;
         }
