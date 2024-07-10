@@ -204,7 +204,12 @@ namespace Assets.Scripts.newScene
             string metadataPath = "metaData/";
             if (dataset.exportToBOP)
                 metadataPath = "bop/" + metadataPath;
-            StreamWriter writer = new StreamWriter(dataset.outputPath + metadataPath + "versionInfo.json", false);
+            string directory = Path.Combine(dataset.outputPath, metadataPath);
+            if (!Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+            string filePath = Path.Combine(directory, "versionInfo.json");
+                
+            StreamWriter writer = new StreamWriter(filePath, false);
             
             var version = PlanetaGameLabo.UnityGitVersion.GitVersion.version;
             writer.WriteLine(JsonUtility.ToJson(version, true));

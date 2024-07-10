@@ -1,0 +1,21 @@
+{
+    "name": "EDM.C2R",
+    "rootNamespace": "",
+    "references": [
+        "GUID:a42927d1d4a3b4cda9b076a7adecb9cc",
+        "GUID:5e7ba8d6d26c84943b64dd07bd1c9510",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95",
+        "GUID:457756d89b35d2941b3e7b37b4ece6f1",
+        "GUID:397edf9bfe7ea4399b706e9ee953b982",
+        "GUID:ba6f8a23b8f9f0540b82c74375b3520b"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

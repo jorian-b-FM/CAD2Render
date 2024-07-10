@@ -3,18 +3,17 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
-using UnityGLTF;
 
 public static class LoadedModelsFactory
 {
-    private static Dictionary<string, Mesh[]> _modelByPath = new Dictionary<string, Mesh[]>();
+    private static Dictionary<string, GameObject> _modelByPath = new Dictionary<string, GameObject>();
 
     private static GameObject _host;
 
-    public static async Task<Mesh[]> LoadModel(string path)
+    public static async Task<GameObject> LoadModel(string path)
     {
-        if (_modelByPath.TryGetValue(path, out Mesh[] results))
-            return results;
+        if (_modelByPath.TryGetValue(path, out GameObject result))
+            return result;
 
         GameObject go = null;
         var ext = Path.GetExtension(path);
@@ -29,12 +28,10 @@ public static class LoadedModelsFactory
         if (go == null)
             Logger.LogError($"Failed to load '{path}'.");
         else
-            results = go.GetComponentsInChildren<MeshFilter>()
-                .Select(x => x.sharedMesh)
-                .ToArray();
+            result = go;
         
-        _modelByPath[path] = results;
-        return results;
+        _modelByPath[path] = result;
+        return result;
     }
 
     private static async Task<GameObject> LoadGltfModel(string path)
@@ -48,13 +45,16 @@ public static class LoadedModelsFactory
             _host.SetActive(false);
         }
         
-        var go = new GameObject();
+        var go = new GameObject{
+            name = $"[GENERATED] {Path.GetFileNameWithoutExtension(path)}"
+        };
         go.transform.SetParent(_host.transform);
-        var component = go.AddComponent<GLTFComponent>();
-        component.GLTFUri = path;
+        var component = go.AddComponent<GLTFast.GltfAsset>();
+        component.Url = path;
 
-        await component.Load();
-            
+        await component.Load(component.FullUrl);
+        // go = component;
+        
         UnityEngine.Object.Destroy(component);
 
         Debug.Log("GLTF file imported successfully.");

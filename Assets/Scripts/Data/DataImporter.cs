@@ -2,15 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
+using Assets.Scripts.io;
 using C2R;
 using SimpleJSON;
-using UnityEditor.VersionControl;
 using UnityEngine;
-using UnityGLTF;
-using UnityGLTF.Loader;
-using UnityGLTF.Plugins;
 using Object = UnityEngine.Object;
 using static ConstDataValues;
 using Task = System.Threading.Tasks.Task;
@@ -24,9 +20,9 @@ public static class ConstDataValues
     public const string typeName = "Type";
     public const string dataName = "Data";
     public const string linksName = "Links";
-    public const string meshColliderName = "Collider";
-    public const string boxColliderName = "Box";
+    public const string colliderName = "Collider";
     public const string meshName = "Mesh";
+    public const string rigidBodyName = "RigidBody";
     public const string assetName = "Asset";
     public const string childrenName = "Children";
 }
@@ -34,7 +30,9 @@ public static class ConstDataValues
 public class DataImporter : MonoBehaviour
 {
     public bool loadFromFolder;
-    public string folderPathToLoad;
+    public string folderPathToLoad = "ExampleData/Default";
+
+    private string _fullFolderPath;
 
     public ScriptableObject[] defaultDataObjects;
     private Dictionary<Type, ScriptableObject> _defaultObjectByType;
@@ -54,13 +52,17 @@ public class DataImporter : MonoBehaviour
                 Logger.LogWarning(
                     $"Multiple of type {type.Name} in the Defaults of {nameof(DataImporter)}. Only the first one will be used.");
         }
+        
+        // Use root folder (both in exe and in editor)
+        if (!Path.IsPathRooted(folderPathToLoad))
+            _fullFolderPath = Path.Combine(Application.dataPath, "..", folderPathToLoad);
+        _fullFolderPath = Path.GetFullPath(_fullFolderPath);
 
-        LoadFromDirectory(folderPathToLoad);
+        LoadFromDirectory(_fullFolderPath);
     }
 
     private async void LoadFromDirectory(string folder)
     {
-        folder = Path.GetFullPath(folder);
         if (!Directory.Exists(folder)) return;
 
         var randomizer = GetComponent<MainRandomizer>();
@@ -147,6 +149,9 @@ public class DataImporter : MonoBehaviour
 
         if (node.TryGetValue(poseName, out JSONNode poseNode))
             ReadPose(poseNode, child);
+        
+        if (node.TryGetValue(rigidBodyName, out JSONNode rigidBodyNode))
+            CreateRigidBody(rigidBodyNode, childGO);
 
         if (node.TryGetValue(meshName, out JSONNode meshNode))
             await CreateMesh(meshNode, childGO);
@@ -154,14 +159,11 @@ public class DataImporter : MonoBehaviour
         if (node.TryGetValue(childrenName, out JSONNode childrenNode))
             await TryCreateChildren(childrenNode, child);
 
-        if (node.TryGetValue(meshColliderName, out JSONNode meshColliderNode))
-            SetupMeshCollider(meshColliderNode, childGO);
-
-        if (node.TryGetValue(boxColliderName, out JSONNode boxColliderNode))
-            SetupBoxCollider(boxColliderNode, childGO);
+        if (node.TryGetValue(colliderName, out JSONNode colliderNode))
+            SetupCollider(colliderNode, childGO);
         
         if (node.TryGetValue(randomizerName, out JSONNode randomizerNode))
-            CreateRandomizers(randomizerNode, childGO);
+            await CreateRandomizers(randomizerNode, childGO);
 
         childGO.SetActive(true);
         return childGO;
@@ -176,92 +178,128 @@ public class DataImporter : MonoBehaviour
             target.localScale = valueNode;
     }
 
-    private static async Task CreateMesh(JSONNode node, GameObject go)
+    private static void CreateRigidBody(JSONNode node, GameObject go)
+    {
+        JSONNode valueNode;
+        var rb = go.AddComponent<Rigidbody>();
+
+        if (node.TryGetValue(nameof(rb.isKinematic), out valueNode))
+            rb.isKinematic = valueNode;
+        if (node.TryGetValue(nameof(rb.mass), out valueNode))
+            rb.mass = valueNode;
+        if (node.TryGetValue(nameof(rb.linearDamping), out valueNode))
+            rb.linearDamping = valueNode;
+        if (node.TryGetValue(nameof(rb.angularDamping), out valueNode))
+            rb.angularDamping = valueNode;
+        if (node.TryGetValue(nameof(rb.useGravity), out valueNode))
+            rb.useGravity = valueNode;
+        if (node.TryGetValue(nameof(rb.freezeRotation), out valueNode))
+            rb.freezeRotation = valueNode;
+        if (node.TryGetValue(nameof(rb.automaticCenterOfMass), out valueNode))
+            rb.automaticCenterOfMass = valueNode;
+        if (node.TryGetValue(nameof(rb.centerOfMass), out valueNode))
+            rb.centerOfMass = valueNode;
+    }
+    
+    private async Task CreateMesh(JSONNode node, GameObject go)
     {
         JSONNode valueNode;
         if (node.TryGetValue(assetName, out valueNode))
         {
             string meshPath = valueNode;
+            if (!Path.IsPathRooted(meshPath))
+                meshPath = Path.Combine(_fullFolderPath, meshPath);
 
-            var meshes = await LoadedModelsFactory.LoadModel(meshPath);
-            var createdFilters = new List<MeshFilter>();
+            var model = await LoadedModelsFactory.LoadModel(meshPath);
 
             if (node.TryGetValue(nameof(MeshFilter.sharedMesh), out valueNode))
             {
                 string submeshName = valueNode;
-                var mesh = meshes.FirstOrDefault(x => x.name == submeshName);
+                var subMesh = model.transform.Find(submeshName);
 
-                if (mesh == null)
+                if (subMesh == null)
                     Logger.LogError($"Could not find mesh '{submeshName}' in '{meshPath}'");
-                
-                var filter = go.AddComponent<MeshFilter>();
-                filter.sharedMesh = mesh;
-                
-                createdFilters.Add(filter);
+                else
+                    Instantiate(subMesh, go.transform, false);
             }
-            else
+            else // if no submesh was specified, just instantiate the whole thing
             {
-                foreach (var mesh in meshes)
-                {
-                    var submeshGO = new GameObject();
-                    submeshGO.transform.SetParent(go.transform);
-                    var filter = submeshGO.AddComponent<MeshFilter>();
-                    filter.sharedMesh = mesh;
-                    
-                    createdFilters.Add(filter);
-                }
-            }
-
-            foreach (var filter in createdFilters)
-            {
-                if (filter.sharedMesh == null)
-                    continue;
-                
-                var renderer = filter.gameObject.AddComponent<MeshRenderer>();
-                renderer.sharedMaterials = new Material[filter.sharedMesh.subMeshCount];
+                Instantiate(model, go.transform, false);
             }
             
             Debug.Log("GLTF file imported successfully.");
         }
     }
 
-    private static void SetupBoxCollider(JSONNode node, GameObject go)
+    private static void SetupCollider(JSONNode node, GameObject go)
     {
-        JSONNode valueNode;
-
-        var collider = go.AddComponent<BoxCollider>();
-        var bounds = Utility.GetCombinedBounds(go);
-        collider.center = bounds.center;
-        collider.size = bounds.size;
-
-        if (node.TryGetValue(nameof(collider.center), out valueNode))
-            collider.center = valueNode;
-        if (node.TryGetValue(nameof(collider.size), out valueNode))
-            collider.size = valueNode;
-        if (node.TryGetValue(nameof(collider.isTrigger), out valueNode))
-            collider.isTrigger = valueNode;
-    }
-
-    private static void SetupMeshCollider(JSONNode node, GameObject go)
-    {
-        if (node is JSONBool boolNode && !boolNode.AsBool)
-            return;
-
-        var filters = go.GetComponentsInChildren<MeshFilter>();
-
-        foreach (var filter in filters)
+        if (!node.TryGetValue(typeName, out JSONNode typeNode))
         {
-            var collider = filter.gameObject.GetComponent<MeshCollider>();
-            if (collider != null)
-                continue;
+            Logger.LogError($"Collider for {go.name} has no type information. None will be created");
+            return;
+        }
 
-            collider = filter.gameObject.AddComponent<MeshCollider>();
-            collider.sharedMesh = filter.sharedMesh;
-            collider.convex = true;
+        JSONNode valueNode;
+        
+        switch (typeNode.Value)
+        {
+            case nameof(MeshCollider):
+                var meshCollider = go.AddComponent<MeshCollider>();
+
+                var filter = go.GetComponentInChildren<MeshFilter>();
+                meshCollider.sharedMesh = filter.sharedMesh;
+                meshCollider.convex = true;
+                break;
+            
+            case nameof(BoxCollider):
+                var boxCollider = go.AddComponent<BoxCollider>();
+                // Encompass the entire object by default
+                var bounds = Utility.GetCombinedBounds(go);
+                boxCollider.center = bounds.center;
+                boxCollider.size = bounds.size;
+
+                if (node.TryGetValue(nameof(boxCollider.center), out valueNode))
+                    boxCollider.center = valueNode;
+                if (node.TryGetValue(nameof(boxCollider.size), out valueNode))
+                    boxCollider.size = valueNode;
+
+                break;
+            
+            case nameof(SphereCollider):
+                var sphereCollider = go.AddComponent<SphereCollider>();
+                
+                if (node.TryGetValue(nameof(sphereCollider.center), out valueNode))
+                    sphereCollider.center = valueNode;
+                if (node.TryGetValue(nameof(sphereCollider.radius), out valueNode))
+                    sphereCollider.radius = valueNode;
+                break;
+            
+            case nameof(CapsuleCollider):
+                var capsuleCollider = go.AddComponent<CapsuleCollider>();
+                
+                if (node.TryGetValue(nameof(capsuleCollider.center), out valueNode))
+                    capsuleCollider.center = valueNode;
+                if (node.TryGetValue(nameof(capsuleCollider.radius), out valueNode))
+                    capsuleCollider.radius = valueNode;
+                if (node.TryGetValue(nameof(capsuleCollider.direction), out valueNode))
+                    capsuleCollider.direction = valueNode;
+                if (node.TryGetValue(nameof(capsuleCollider.height), out valueNode))
+                    capsuleCollider.height = valueNode;
+                break;
+            
+            default:
+                Logger.LogError($"Unknown collider type: {typeNode} for object {go.name}");
+                break;
+        }
+
+        // Set defaults for all colliders (if 1 was created)
+        if (go.TryGetComponent(out Collider collider))
+        {
+            collider.isTrigger = node.GetValueOrDefault(nameof(Collider.isTrigger), false);
         }
     }
 
-    private void CreateRandomizers(JSONNode randomizerNode, GameObject target)
+    private async Task CreateRandomizers(JSONNode randomizerNode, GameObject target)
     {
         if (randomizerNode is not JSONArray)
         {
@@ -278,6 +316,36 @@ public class DataImporter : MonoBehaviour
             // Custom behaviour per handler type
             switch (behaviour)
             {
+                case ObjectRandomizeHandler objectRandomizer:
+                    string path = objectRandomizer.Dataset.modelsPath;
+                    var objects = ResourceManager.LoadAll<GameObject>(path);
+                    // If it isn't a valid resource path (no resources found). Check if there are any jsons
+                    if (!objects.Any())
+                    {
+                        string fullPath = Path.Combine(_fullFolderPath, path);
+
+                        if (Directory.Exists(fullPath))
+                        {
+                            var objectJsons = Directory.GetFiles(fullPath, "*.json");
+
+                            objects = new GameObject[objectJsons.Length];
+
+                            for (var i = 0; i < objectJsons.Length; i++)
+                            {
+                                var json = objectJsons[i];
+                                var childName = Path.GetFileNameWithoutExtension(json);
+                                var objectNode = JSON.Parse(json);
+
+                                objects[i] = await TryCreateChild(childName, objectNode, target.transform);
+                            }
+
+                            // Note: use path and not fullPath here as we want to override the result of the dataset
+                            ResourceManager.RegisterSet(path, objects);
+                        }
+                        else
+                            Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
+                    }
+                    break;
                 case MaterialRandomizeHandler materialRandomizer:
                     if (node.TryGetValue(linksName, out var linksNode))
                     {
@@ -311,7 +379,7 @@ public class DataImporter : MonoBehaviour
         // Add component & override the MonoBehaviour data if needed
         behaviour = target.AddComponent(type) as T;
         if (node.TryGetValue(dataName, out JSONNode dataNode))
-            JsonUtility.FromJsonOverwrite(dataNode, behaviour);
+            JsonUtility.FromJsonOverwrite(dataNode.ToString(), behaviour);
 
         // We cannot override values inside of a nested Object through the above, so do that here
         return TryOverrideDataset(behaviour, node);
@@ -323,15 +391,17 @@ public class DataImporter : MonoBehaviour
             return true;
 
         var datasetType = datasetUser.GetDataSetType();
-        if (!_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
+        if (_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
         {
-            Logger.LogError(
-                $"No default defined for type {datasetType.Name}. This means we cannot set the dataset & will likely result in further errors.");
-            return false;
+            // Instantiate it so we have a copy since we might override some values
+            so = Instantiate(so);
         }
-
-        // Instantiate it so we have a copy since we might override some values
-        so = Instantiate(so);
+        else
+        {
+            Logger.LogError($"No default defined for type {datasetType.Name}. A default object will be created but this might result in further errors.");
+            so = ScriptableObject.CreateInstance(datasetType);
+        }
+        
         if (node.TryGetValue(datasetName, out JSONNode dataNode))
             JsonUtility.FromJsonOverwrite(dataNode, so);
         datasetUser.SetDataset(so);

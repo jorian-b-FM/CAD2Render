@@ -31,8 +31,9 @@ MonoBehaviour:
     m_Name: package.openupm.com
     m_Url: https://package.openupm.com
     m_Scopes:
-    - com.sneakysquirrellabs.minmaxrangeattribute
+    - com.sneakysquirrellabs
     - org.khronos.unitygltf
+    - com.atteneder.gltfast
     m_IsDefault: 0
     m_Capabilities: 0
     m_ConfigSource: 4

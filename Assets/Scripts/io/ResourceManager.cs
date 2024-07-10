@@ -26,15 +26,18 @@ namespace Assets.Scripts.io
                 if (path != "")
                     list = Resources.LoadAll(path, typeof(T));
                 else
-                    list = new UnityEngine.Object[0];
+                    list = Array.Empty<UnityEngine.Object>();
                 LoadedData.Add(makeHashCode(path, typeof(T)), list);
             }
             return list.Cast<T>().ToArray();
         }
 
+        /// Associates a list of object with a certain path for the given type.
+        /// <remarks>Overrides the list if there is already an associated list</remarks>
         public static void RegisterSet<T>(string path, T[] list) where T: Object
         {
-            LoadedData.Add(makeHashCode(path, typeof(T)), list);
+            var hash = makeHashCode(path, typeof(T));
+            LoadedData[hash] = list;
         }
 
         private static Dictionary<string, ComputeShader> loadedShaders = new Dictionary<string, ComputeShader>();
