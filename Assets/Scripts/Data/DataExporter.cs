@@ -1,11 +1,9 @@
-﻿#if UNITY_EDITOR
-using System;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Assets.Scripts.io;
+using C2R.Export;
 using SimpleJSON;
-using UnityEditor;
 using UnityEngine;
 using static ConstDataValues;
 
@@ -133,7 +131,7 @@ namespace C2R
                 meshData = new MeshData
                 {
                     Root = o,
-                    FileName = ExportModel(o, false),
+                    FileName = ModelExporter.ExportModel(_fullFolderPath, o, false),
                     TreeLocation = o.name
                 };
             }
@@ -225,28 +223,6 @@ namespace C2R
             return Path.Join(data.TreeLocation, name).Replace("\\", "/");
         }
 
-        private string ExportModel(Transform o, bool binary = true)
-        {
-            var export = new GLTFast.Export.GameObjectExport();
-            
-            // Instantiate it & reset transform
-            var clone = Instantiate(o, null, false);
-            clone.name = o.name;
-            clone.gameObject.SetActive(true);
-            export.AddScene(new[]
-            {
-                clone.gameObject
-            }, clone.worldToLocalMatrix, o.name);
-            DestroyImmediate(clone.gameObject);
-
-            string sceneName = o.name;
-            var ext = binary ? ".glb" : ".gltf";
-            var resultFile = ToSafeFilename(_fullFolderPath, sceneName, ext);
-            var fileName = Path.GetFileName(resultFile);
-            export.SaveToFileAndDispose(resultFile);
-            return fileName;
-        }
-
         private JSONNode ToJsonNode(UnityEngine.Behaviour o)
         {
             var node = new JSONObject
@@ -260,75 +236,29 @@ namespace C2R
         }
 
         private JSONNode ToJsonNodeWithJsonUtility(UnityEngine.Object o)
-            => JSON.Parse(JsonUtility.ToJson(o, true));
+        {
+            var jsonNode = JSON.Parse(JsonUtility.ToJson(o, true));
+            // Sanitize it, other unity objects will be serialized with instanceID. But that is not persistent
+            if (jsonNode is JSONObject objectNode)
+            {
+                List<string> invalidKeys = new List<string>();
+                foreach (var (key, valueNode) in objectNode)
+                {
+                    if (valueNode is JSONObject childNode && childNode.HasKey("instanceID"))
+                        invalidKeys.Add(key);
+                }
+
+                foreach (var key in invalidKeys)
+                    objectNode.Remove(key);
+            }
+            
+            return jsonNode;
+        }
 
         private string GetTypeName(object o)
         {
             // TODO: do we want assembly qualified name?
             return o.GetType().Name;
         }
-
-        private static string RetrieveTexturePath(UnityEngine.Texture texture)
-        {
-            var path = AssetDatabase.GetAssetPath(texture);
-            // texture is a subasset
-            if (AssetDatabase.GetMainAssetTypeAtPath(path) != typeof(Texture2D))
-            {
-                var ext = System.IO.Path.GetExtension(path);
-                if (string.IsNullOrWhiteSpace(ext)) return texture.name + ".png";
-                path = path.Replace(ext, "-" + texture.name + ext);
-            }
-
-            return path;
-        }
-
-        private static string ToSafeFilename(string directory, string filename, string ext = null)
-        {
-            if (ext == null)
-                ext = Path.GetExtension(filename);
-            return GetFileName(directory, filename, ext);
-        }
-        
-        private static string GetFileName(string directory, string fileNameThatMayHaveExtension, string requiredExtension)
-        {
-            var absolutePathThatMayHaveExtension = Path.Combine(directory, EnsureValidFileName(fileNameThatMayHaveExtension));
-
-            if (!requiredExtension.StartsWith(".", StringComparison.Ordinal))
-                requiredExtension = "." + requiredExtension;
-
-            if (!Path.GetExtension(absolutePathThatMayHaveExtension).Equals(requiredExtension, StringComparison.OrdinalIgnoreCase))
-                return absolutePathThatMayHaveExtension + requiredExtension;
-
-            return absolutePathThatMayHaveExtension;
-        }
-
-        /// <summary>
-        /// Strip illegal chars and reserved words from a candidate filename (should not include the directory path)
-        /// </summary>
-        /// <remarks>
-        /// http://stackoverflow.com/questions/309485/c-sharp-sanitize-file-name
-        /// </remarks>
-        private static string EnsureValidFileName(string filename)
-        {
-            var invalidChars = Regex.Escape(new string(Path.GetInvalidFileNameChars()));
-            var invalidReStr = string.Format(@"[{0}]+", invalidChars);
-
-            var reservedWords = new []
-            {
-                "CON", "PRN", "AUX", "CLOCK$", "NUL", "COM0", "COM1", "COM2", "COM3", "COM4",
-                "COM5", "COM6", "COM7", "COM8", "COM9", "LPT0", "LPT1", "LPT2", "LPT3", "LPT4",
-                "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
-            };
-
-            var sanitisedNamePart = Regex.Replace(filename, invalidReStr, "_");
-            foreach (var reservedWord in reservedWords)
-            {
-                var reservedWordPattern = string.Format("^{0}\\.", reservedWord);
-                sanitisedNamePart = Regex.Replace(sanitisedNamePart, reservedWordPattern, "_reservedWord_.", RegexOptions.IgnoreCase);
-            }
-
-            return sanitisedNamePart;
-        }
     }
 }
-#endif

@@ -22,7 +22,7 @@ public class HSVOffsetHandler : MaterialRandomizerInterface, IDatasetUser<HSVOff
 
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
-        Color color = textures.GetCurrentLinkedColor("_Color");
+        Color color = textures.GetCurrentLinkedColor("_Color", "baseColorFactor");
 
         // generate a random color based on min and max hsv values
         float H, S, V;

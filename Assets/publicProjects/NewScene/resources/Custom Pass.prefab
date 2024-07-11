@@ -59,7 +59,7 @@ MonoBehaviour:
     RefIds:
     - rid: 7254404686942044167
       type: {class: DrawSegmentationObjectsCustomPass, ns: UnityEngine.Rendering.HighDefinition,
-        asm: EDM.C2R}
+        asm: Assembly-CSharp}
       data:
         m_Name: SegmentationPass
         enabled: 0
@@ -75,7 +75,7 @@ MonoBehaviour:
         targetTextureArray: {fileID: 0}
     - rid: 7254404686942044168
       type: {class: CustomShaderRenderToTexturePass, ns: UnityEngine.Rendering.HighDefinition,
-        asm: EDM.C2R}
+        asm: Assembly-CSharp}
       data:
         m_Name: NormalsPass
         enabled: 0
@@ -91,7 +91,7 @@ MonoBehaviour:
         backgroundColor: {r: 0, g: 0, b: 0, a: 1}
     - rid: 7254404686942044169
       type: {class: CustomShaderRenderToTexturePass, ns: UnityEngine.Rendering.HighDefinition,
-        asm: EDM.C2R}
+        asm: Assembly-CSharp}
       data:
         m_Name: DepthPass
         enabled: 0

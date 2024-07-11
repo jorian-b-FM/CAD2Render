@@ -142,7 +142,7 @@ public class MaterialTextures
         if (falseColor != null)
         {
             falseColor.falseColorTex = get(MapTypes.defectMap);
-            Vector4 scaleOffsetVector = GetCurrentLinkedVector("_BaseColorMap_ST");
+            Vector4 scaleOffsetVector = GetCurrentLinkedVector("_BaseColorMap_ST", "baseColorTexture_ST");
             if (scaleOffsetVector == new Vector4(0, 0, 0, 0))
                 scaleOffsetVector = new Vector4(1, 1, 0, 0);
             falseColor.scaleOffset = scaleOffsetVector;
@@ -197,49 +197,85 @@ public class MaterialTextures
         }
     }
 
-    public Vector4 GetCurrentLinkedVector(string propertyName)
+    public Vector4 GetCurrentLinkedVector(string propertyName, string altPropertyName = null)
     {
         if (newProperties.HasVector(propertyName))
             return newProperties.GetVector(propertyName);
 
-        else if (rend.materials[materialIndex].HasVector(propertyName))
+        if (rend.materials[materialIndex].HasVector(propertyName))
             return rend.materials[materialIndex].GetVector(propertyName);
+        
+        if (altPropertyName != null)
+        {
+            if (newProperties.HasVector(altPropertyName))
+                return newProperties.GetVector(altPropertyName);
+
+            if (rend.materials[materialIndex].HasVector(altPropertyName))
+                return rend.materials[materialIndex].GetVector(altPropertyName);
+        }
 
         Debug.LogWarning("Error occured while requesting a property of a material. Probably an unsuported material shader is used. <br>Shader: <b>" + rend.material.shader.name + "</b> has no attribute: <b>" + propertyName + "</b>");
         return new Vector4(0, 0, 0, 0);
 
     }
-    public Color GetCurrentLinkedColor(string propertyName)
+    public Color GetCurrentLinkedColor(string propertyName, string altPropertyName = null)
     {
         if (newProperties.HasColor(propertyName))
             return newProperties.GetColor(propertyName);
 
-        else if (rend.materials[materialIndex].HasColor(propertyName))
+        if (rend.materials[materialIndex].HasColor(propertyName))
             return rend.materials[materialIndex].GetColor(propertyName);
+        
+        if (altPropertyName != null)
+        {
+            if (newProperties.HasColor(altPropertyName))
+                return newProperties.GetColor(altPropertyName);
+
+            if (rend.materials[materialIndex].HasColor(altPropertyName))
+                return rend.materials[materialIndex].GetColor(altPropertyName);
+        }
 
         Debug.LogWarning("Error occured while requesting a property of a material. Probably an unsuported material shader is used. <br>Shader: <b>" + rend.material.shader.name + "</b> has no attribute: <b>" + propertyName + "</b>");
         return new Color(0, 0, 0, 0);
     }
-    public Texture GetCurrentLinkedTexture(string propertyName)
+    public Texture GetCurrentLinkedTexture(string propertyName, string altPropertyName = null)
     {
         if (newProperties.HasTexture(propertyName))
             return newProperties.GetTexture(propertyName);
 
-        else if (rend.materials[materialIndex].HasTexture(propertyName))
+        if (rend.materials[materialIndex].HasTexture(propertyName))
             return rend.materials[materialIndex].GetTexture(propertyName);
+
+        if (altPropertyName != null)
+        {
+            if (newProperties.HasTexture(altPropertyName))
+                return newProperties.GetTexture(altPropertyName);
+
+            if (rend.materials[materialIndex].HasTexture(altPropertyName))
+                return rend.materials[materialIndex].GetTexture(altPropertyName);
+        }
 
         Debug.LogWarning("Error occured while requesting a property of a material. Probably an unsuported material shader is used. <br>Shader: <b>" + rend.material.shader.name + "</b> has no attribute: <b>" + propertyName + "</b>");
         return null;
         
     }
 
-    public float GetCurrentLinkedFloat(string propertyName)
+    public float GetCurrentLinkedFloat(string propertyName, string altPropertyName = null)
     {
         if (newProperties.HasFloat(propertyName))
             return newProperties.GetFloat(propertyName);
 
-        else if (rend.materials[materialIndex].HasFloat(propertyName))
+        if (rend.materials[materialIndex].HasFloat(propertyName))
             return rend.materials[materialIndex].GetFloat(propertyName);
+        
+        if (altPropertyName != null)
+        {
+            if (newProperties.HasFloat(altPropertyName))
+                return newProperties.GetFloat(altPropertyName);
+
+            if (rend.materials[materialIndex].HasFloat(altPropertyName))
+                return rend.materials[materialIndex].GetFloat(altPropertyName);
+        }
 
         Debug.LogWarning("Error occured while requesting a property of a material. Probably an unsuported material shader is used. <br>Shader: <b>" + rend.material.shader.name + "</b> has no attribute: <b>" + propertyName + "</b>");
         return 0.0f;

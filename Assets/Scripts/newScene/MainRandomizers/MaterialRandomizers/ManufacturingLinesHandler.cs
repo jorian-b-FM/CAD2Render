@@ -32,7 +32,9 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface, IDatasetUs
 
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
-        var ColorTexture = textures.set(MaterialTextures.MapTypes.colorMap, textures.GetCurrentLinkedTexture("_BaseColorMap"), textures.GetCurrentLinkedColor("_Color"));
+        var ColorTexture = textures.set(MaterialTextures.MapTypes.colorMap,
+            textures.GetCurrentLinkedTexture("_BaseColorMap", "baseColorTexture"),
+            textures.GetCurrentLinkedColor("_Color", "baseColorFactor"));
         int texSizeX = ColorTexture.width;
         int texSizeY = ColorTexture.height;
         updateLineZoneTexture(texSizeX, texSizeY);
