@@ -74,11 +74,14 @@ namespace C2R
             {
                 [poseName] = new JSONObject
                 {
-                    [nameof(o.position)] = o.position,
-                    [nameof(o.rotation)] = o.rotation,
+                    [nameof(o.localPosition)] = o.localPosition,
+                    [nameof(o.localRotation)] = o.localRotation.eulerAngles,
                     [nameof(o.localScale)] = o.localScale,
                 }
             };
+
+            if (!o.gameObject.CompareTag("Untagged"))
+                childObject[tagName] = o.gameObject.tag;
 
             var colliders = o.GetComponents<Collider>();
 
@@ -134,7 +137,7 @@ namespace C2R
                 meshData = new MeshData
                 {
                     Root = o,
-                    FileName = ModelExporter.Export(_fullFolderPath, o),
+                    FileName = ModelExporter.Export(_fullFolderPath, "Data", o),
                     TreeLocation = o.name
                 };
             }
@@ -168,24 +171,16 @@ namespace C2R
                 };
             }
             
-            var interfaces = o.GetComponents<RandomizerInterface>();
-            if (interfaces.Any())
+            var randomizers = o.GetComponents<RandomizerInterface>();
+            if (randomizers.Any())
             {
                 var arr = new JSONArray();
-                childObject[randomizerName] = arr;
-                for (int index = 0; index < interfaces.Length; index++)
+                for (int index = 0; index < randomizers.Length; index++)
                 {
-                    var i = interfaces[index];
+                    var i = randomizers[index];
                     var iData = ToJsonNode(i);
                     switch (i)
                     {
-                        case MaterialRandomizeHandler materialRandomizer:
-                            var linksArr = new JSONArray();
-                            iData[linksName] = linksArr;
-                            var links = materialRandomizer.GetLinkedInterfaces();
-                            foreach (var link in links)
-                                linksArr.Add(ToJsonNode(link));
-                            break;
                         case LightRandomizeHandler lightRandomizer:
                             var environments = ResourceManager.LoadAll<Cubemap>(lightRandomizer.Dataset.environmentsPath);
                             if (environments.Any())
@@ -222,6 +217,20 @@ namespace C2R
 
                     arr.Add(iData);
                 }
+                childObject[randomizerName] = arr;
+            }
+
+            var interfaces = o.GetComponents<MaterialRandomizerInterface>();
+            if (interfaces.Any())
+            {
+                var arr = new JSONArray();
+                for (int index = 0; index < interfaces.Length; index++)
+                {
+                    var i = interfaces[index];
+                    var node = ToJsonNode(i);
+                    arr.Add(node);
+                }
+                childObject[materialRandomizerName] = arr;
             }
 
             if (o.childCount > 0)

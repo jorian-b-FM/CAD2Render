@@ -15,11 +15,12 @@ public static class ConstDataValues
 {
     public const string defaultSettingsName = "__defaults__";
     public const string randomizerName = "Randomizers";
+    public const string materialRandomizerName = "MaterialRandomizers";
     public const string poseName = "Pose";
+    public const string tagName = "Tag";
     public const string datasetName = "Dataset";
     public const string typeName = "Type";
     public const string dataName = "Data";
-    public const string linksName = "Links";
     public const string collidersName = "Colliders";
     public const string meshName = "Mesh";
     public const string rigidBodyName = "RigidBody";
@@ -37,11 +38,15 @@ public class DataImporter : MonoBehaviour
     public ScriptableObject[] defaultDataObjects;
     private Dictionary<Type, ScriptableObject> _defaultObjectByType;
 
+    private List<Object> _createdResources;
+
     private GameObject _fakeResources;
 
     async void Awake()
     {
         if (!loadFromFolder) return;
+
+        _createdResources = new List<Object>();
 
         _fakeResources = new GameObject("[GENERATED] Fake Resources");
         _fakeResources.SetActive(false);
@@ -69,6 +74,15 @@ public class DataImporter : MonoBehaviour
         await LoadFromDirectory(_fullFolderPath);
 
         gameObject.SetActive(wasActive || gameObject.activeSelf);
+    }
+
+    private void OnDestroy()
+    {
+        foreach (var resource in _createdResources)
+        {
+            if (resource)
+                Object.Destroy(resource);
+        }
     }
 
     private async Task LoadFromDirectory(string folder)
@@ -156,24 +170,32 @@ public class DataImporter : MonoBehaviour
         child.SetParent(target);
         // Disable it until everything has been initialized (so awake does not get called instantly)
         childGO.SetActive(false);
-
-        if (node.TryGetValue(poseName, out JSONNode poseNode))
-            ReadPose(poseNode, child);
         
-        if (node.TryGetValue(rigidBodyName, out JSONNode rigidBodyNode))
-            CreateRigidBody(rigidBodyNode, childGO);
+        JSONNode valueNode;
 
-        if (node.TryGetValue(meshName, out JSONNode meshNode))
-            await CreateMesh(meshNode, childGO);
+        if (node.TryGetValue(tagName, out valueNode))
+            childGO.tag = valueNode;
 
-        if (node.TryGetValue(childrenName, out JSONNode childrenNode))
-            await TryCreateChildren(childrenNode, child);
-
-        if (node.TryGetValue(collidersName, out JSONNode colliderNode))
-            SetupColliders(colliderNode, childGO);
+        if (node.TryGetValue(poseName, out valueNode))
+            ReadPose(valueNode, child);
         
-        if (node.TryGetValue(randomizerName, out JSONNode randomizerNode))
-            await CreateRandomizers(randomizerNode, childGO);
+        if (node.TryGetValue(rigidBodyName, out valueNode))
+            CreateRigidBody(valueNode, childGO);
+
+        if (node.TryGetValue(meshName, out valueNode))
+            await CreateMesh(valueNode, childGO);
+
+        if (node.TryGetValue(childrenName, out valueNode))
+            await TryCreateChildren(valueNode, child);
+
+        if (node.TryGetValue(collidersName, out valueNode))
+            SetupColliders(valueNode, childGO);
+        
+        if (node.TryGetValue(materialRandomizerName, out valueNode))
+            CreateMaterialRandomizers(valueNode, childGO);
+        
+        if (node.TryGetValue(randomizerName, out valueNode))
+            await CreateRandomizers(valueNode, childGO);
 
         childGO.SetActive(true);
         return childGO;
@@ -182,8 +204,17 @@ public class DataImporter : MonoBehaviour
     private static void ReadPose(JSONNode node, Transform target)
     {
         JSONNode valueNode;
-        target.position = node[nameof(target.position)];
-        target.rotation = node[nameof(target.rotation)];
+        
+        if (node.TryGetValue(nameof(target.localPosition), out valueNode))
+            target.localPosition = valueNode;
+        else if (node.TryGetValue(nameof(target.position), out valueNode))
+            target.position = valueNode;
+        
+        if (node.TryGetValue(nameof(target.localRotation), out valueNode))
+            target.localRotation = Quaternion.Euler(valueNode);
+        else if (node.TryGetValue(nameof(target.rotation), out valueNode))
+            target.rotation = Quaternion.Euler(valueNode);
+        
         if (node.TryGetValue(nameof(target.localScale), out valueNode))
             target.localScale = valueNode;
     }
@@ -205,10 +236,11 @@ public class DataImporter : MonoBehaviour
             rb.useGravity = valueNode;
         if (node.TryGetValue(nameof(rb.freezeRotation), out valueNode))
             rb.freezeRotation = valueNode;
-        if (node.TryGetValue(nameof(rb.automaticCenterOfMass), out valueNode))
-            rb.automaticCenterOfMass = valueNode;
+        
         if (node.TryGetValue(nameof(rb.centerOfMass), out valueNode))
             rb.centerOfMass = valueNode;
+        if (node.TryGetValue(nameof(rb.automaticCenterOfMass), out valueNode))
+            rb.automaticCenterOfMass = valueNode;
     }
     
     private async Task CreateMesh(JSONNode node, GameObject go)
@@ -339,7 +371,7 @@ public class DataImporter : MonoBehaviour
             // Custom behaviour per handler type
             switch (behaviour)
             {
-                case LightRandomizeHandler lightRandomizer:
+                case IDatasetUser<LightRandomizeData> lightRandomizer:
                     string environmentPath = lightRandomizer.Dataset.environmentsPath;
                     Texture[] cubemaps = ResourceManager.LoadAll<Cubemap>(environmentPath);
                     // If it isn't a valid resource path (no resources found). Check if there are any jsons
@@ -355,7 +387,9 @@ public class DataImporter : MonoBehaviour
 
                             for (var i = 0; i < cubemapTextures.Length; i++)
                             {
-                                cubemaps[i] = CubemapLoader.Load(cubemapTextures[i]);
+                                var cube = CubemapLoader.Load(cubemapTextures[i]);
+                                _createdResources.Add(cube);
+                                cubemaps[i] = cube;
                             }
 
                             // Note: use environmentPath and not fullPath here as we want to override the result of the dataset
@@ -365,7 +399,7 @@ public class DataImporter : MonoBehaviour
                             Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
                     }
                     break;
-                case ObjectRandomizeHandler objectRandomizer:
+                case IDatasetUser<ObjectRandomizeData> objectRandomizer:
                     string modelsPath = objectRandomizer.Dataset.modelsPath;
                     var objects = ResourceManager.LoadAll<GameObject>(modelsPath);
                     // If it isn't a valid resource path (no resources found). Check if there are any jsons
@@ -396,22 +430,20 @@ public class DataImporter : MonoBehaviour
                             Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
                     }
                     break;
-                case MaterialRandomizeHandler materialRandomizer:
-                    if (node.TryGetValue(linksName, out var linksNode))
-                    {
-                        if (linksNode is not JSONArray)
-                        {
-                            Logger.LogError($"Expected Array for '{linksName}' in '{target.name}'");
-                            continue;
-                        }
-
-                        foreach (var linkNode in linksNode.Children)
-                            TryCreateBehaviour<MaterialRandomizerInterface>(linkNode, target, out _);
-                    }
-
-                    break;
             }
         }
+    }
+
+    private void CreateMaterialRandomizers(JSONNode randomizersNode, GameObject target)
+    {
+        if (randomizersNode is not JSONArray)
+        {
+            Logger.LogError($"Expected Array for '{materialRandomizerName}' in '{target.name}'");
+            return;
+        }
+
+        foreach (var linkNode in randomizersNode.Children)
+            TryCreateBehaviour<MaterialRandomizerInterface>(linkNode, target, out _);
     }
 
     private bool TryCreateBehaviour<T>(JSONNode node, GameObject target, out T behaviour)

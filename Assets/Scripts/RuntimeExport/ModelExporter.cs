@@ -8,12 +8,19 @@ namespace C2R.Export
 {
     public static class ModelExporter
     {
-        public static string Export(string targetFolder, Transform o)
+        /// <returns>The filename of the exported model</returns>
+        public static string Export(string directory, Transform o)
         {
-            return ExportToGltf(targetFolder, o.name, o);
+            return ExportToGltf(directory, "", o.name, o);
+        }
+        
+        /// <returns>The path of the exported model relative to root.</returns>
+        public static string Export(string root, string directory, Transform o)
+        {
+            return ExportToGltf(root, directory, o.name, o);
         }
 
-        private static string ExportToGltf(string targetFolder, string fileName, Transform o, bool binary = false)
+        private static string ExportToGltf(string root, string directory, string fileName, Transform o, bool binary = false)
         {
             var export = new GLTFast.Export.GameObjectExport();
             // Instantiate it & reset transform
@@ -27,11 +34,15 @@ namespace C2R.Export
             Object.DestroyImmediate(clone.gameObject);
             
             var ext = binary ? ".glb" : ".gltf";
+            var targetFolder = Path.Combine(root, directory);
+            if (!Directory.Exists(targetFolder))
+                Directory.CreateDirectory(targetFolder);
+            
             var resultFile = PathHelper.ToSafeFilename(targetFolder, fileName, ext);
             fileName = Path.GetFileName(resultFile);
             export.SaveToFileAndDispose(resultFile);
             
-            return fileName;
+            return Path.Combine(directory, fileName).Replace("\\", "/");
         }
     }
 }
