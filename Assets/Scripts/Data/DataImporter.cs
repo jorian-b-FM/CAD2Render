@@ -91,7 +91,6 @@ public class DataImporter : MonoBehaviour
 
         var randomizer = GetComponent<MainRandomizer>();
 
-        // instantiate so we do not edit the asset
         var filePath = Path.Combine(folder, "main.json");
         TryLoadDataSet(filePath, randomizer);
 
@@ -110,7 +109,8 @@ public class DataImporter : MonoBehaviour
         try
         {
             var json = File.ReadAllText(filePath);
-            var newDataset = Instantiate(randomizer.Dataset);
+            // instantiate so we do not edit the asset
+            var newDataset = CustomInstantiate(randomizer.Dataset);
             JsonUtility.FromJsonOverwrite(json, newDataset);
             randomizer.Dataset = newDataset;
             return true;
@@ -165,9 +165,23 @@ public class DataImporter : MonoBehaviour
 
     private async Task<GameObject> TryCreateChild(string childName, JSONNode node, Transform target)
     {
-        var childGO = new GameObject(childName);
-        Transform child = childGO.transform;
-        child.SetParent(target);
+        GameObject childGO = null;
+        Transform child = target.Find(childName);
+        if (child != null)
+            childGO = child.gameObject;
+        else
+        {
+            var path = childName.Split("/");
+            Transform parent = target;
+            foreach (var part in path)
+            {
+                childGO = new GameObject(part);
+                child = childGO.transform;
+                child.SetParent(parent);
+                parent = child;
+            }
+        }
+        
         // Disable it until everything has been initialized (so awake does not get called instantly)
         childGO.SetActive(false);
         
@@ -175,6 +189,8 @@ public class DataImporter : MonoBehaviour
 
         if (node.TryGetValue(tagName, out valueNode))
             childGO.tag = valueNode;
+        else if (childName.StartsWith("keypoint", StringComparison.InvariantCultureIgnoreCase))
+            childGO.tag = "Keypoint";
 
         if (node.TryGetValue(poseName, out valueNode))
             ReadPose(valueNode, child);
@@ -262,11 +278,12 @@ public class DataImporter : MonoBehaviour
                 if (subMesh == null)
                     Logger.LogError($"Could not find mesh '{submeshName}' in '{meshPath}'");
                 else
-                    Instantiate(subMesh, go.transform, false);
+                    CustomInstantiate(subMesh, go.transform);
             }
             else // if no submesh was specified, just instantiate the whole thing
             {
-                Instantiate(model, go.transform, false);
+                foreach (Transform child in model.transform)
+                    CustomInstantiate(child, go.transform);
             }
             
             Debug.Log("GLTF file imported successfully.");
@@ -476,7 +493,7 @@ public class DataImporter : MonoBehaviour
         if (_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
         {
             // Instantiate it so we have a copy since we might override some values
-            so = Instantiate(so);
+            so = CustomInstantiate(so);
         }
         else
         {
@@ -488,5 +505,19 @@ public class DataImporter : MonoBehaviour
             JsonUtility.FromJsonOverwrite(dataNode.ToString(), so);
         datasetUser.SetDataset(so);
         return true;
+    }
+
+    private static T CustomInstantiate<T>(T objectToClone) where T : Object
+    {
+        var clone = Instantiate(objectToClone);
+        clone.name = objectToClone.name;
+        return clone;
+    }
+    
+    private static T CustomInstantiate<T>(T objectToClone, Transform parent) where T : Object
+    {
+        var clone = Instantiate(objectToClone, parent, false);
+        clone.name = objectToClone.name;
+        return clone;
     }
 }
