@@ -310,13 +310,13 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
     public void setRenderprofiles()
     {
         if (renderSettings != null && dataset.renderProfile != null)
-            renderSettings.GetComponent<Volume>().profile = dataset.renderProfile;
+            renderSettings.GetComponent<Volume>().sharedProfile = dataset.renderProfile;
 
         if (raytracingSettings != null && dataset.rayTracingProfile != null)
-            raytracingSettings.GetComponent<Volume>().profile = dataset.rayTracingProfile;
+            raytracingSettings.GetComponent<Volume>().sharedProfile = dataset.rayTracingProfile;
 
         if (postProcesingSettings != null && dataset.postProcesingProfile != null)
-            postProcesingSettings.GetComponent<Volume>().profile = dataset.postProcesingProfile;
+            postProcesingSettings.GetComponent<Volume>().sharedProfile = dataset.postProcesingProfile;
     }
 
     private void setupFalseColorStack()

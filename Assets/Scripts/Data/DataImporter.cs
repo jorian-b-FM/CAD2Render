@@ -339,13 +339,39 @@ public class DataImporter : MonoBehaviour
             // Custom behaviour per handler type
             switch (behaviour)
             {
+                case LightRandomizeHandler lightRandomizer:
+                    string environmentPath = lightRandomizer.Dataset.environmentsPath;
+                    Texture[] cubemaps = ResourceManager.LoadAll<Cubemap>(environmentPath);
+                    // If it isn't a valid resource path (no resources found). Check if there are any jsons
+                    if (!cubemaps.Any())
+                    {
+                        string fullPath = Path.Combine(_fullFolderPath, environmentPath);
+                        
+                        if (Directory.Exists(fullPath))
+                        {
+                            var cubemapTextures = Directory.GetFiles(fullPath, "*.exr");
+
+                            cubemaps = new Texture[cubemapTextures.Length];
+
+                            for (var i = 0; i < cubemapTextures.Length; i++)
+                            {
+                                cubemaps[i] = CubemapLoader.Load(cubemapTextures[i]);
+                            }
+
+                            // Note: use environmentPath and not fullPath here as we want to override the result of the dataset
+                            ResourceManager.RegisterSet(environmentPath, cubemaps, typeof(Cubemap));
+                        }
+                        else
+                            Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
+                    }
+                    break;
                 case ObjectRandomizeHandler objectRandomizer:
-                    string path = objectRandomizer.Dataset.modelsPath;
-                    var objects = ResourceManager.LoadAll<GameObject>(path);
+                    string modelsPath = objectRandomizer.Dataset.modelsPath;
+                    var objects = ResourceManager.LoadAll<GameObject>(modelsPath);
                     // If it isn't a valid resource path (no resources found). Check if there are any jsons
                     if (!objects.Any())
                     {
-                        string fullPath = Path.Combine(_fullFolderPath, path);
+                        string fullPath = Path.Combine(_fullFolderPath, modelsPath);
 
                         if (Directory.Exists(fullPath))
                         {
@@ -363,8 +389,8 @@ public class DataImporter : MonoBehaviour
                                 objects[i] = await TryCreateChild(childName, objectNode, _fakeResources.transform);
                             }
 
-                            // Note: use path and not fullPath here as we want to override the result of the dataset
-                            ResourceManager.RegisterSet(path, objects);
+                            // Note: use modelsPath and not fullPath here as we want to override the result of the dataset
+                            ResourceManager.RegisterSet(modelsPath, objects);
                         }
                         else
                             Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");

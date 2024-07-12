@@ -17,26 +17,35 @@ namespace Assets.Scripts.io
         {
             return type.ToString() + "?" +  path;// ?  should be an illegal character in a path name so should never make conflicts
         }
-
-        public static T[] LoadAll<T>(string  path) where T: Object
+        
+        public static Object[] LoadAll(string path, Type type)
         {
             UnityEngine.Object[] list;
-            if (!LoadedData.TryGetValue(makeHashCode(path, typeof(T)), out list))
+            if (!LoadedData.TryGetValue(makeHashCode(path, type), out list))
             {
                 if (path != "")
-                    list = Resources.LoadAll(path, typeof(T));
+                    list = Resources.LoadAll(path, type);
                 else
-                    list = Array.Empty<UnityEngine.Object>();
-                LoadedData.Add(makeHashCode(path, typeof(T)), list);
+                    list = Array.Empty<Object>();
+                LoadedData.Add(makeHashCode(path, type), list);
             }
-            return list.Cast<T>().ToArray();
+            return list;
         }
+
+        public static T[] LoadAll<T>(string path) where T : Object
+            => LoadAll(path, typeof(T)).Cast<T>().ToArray();
 
         /// Associates a list of object with a certain path for the given type.
         /// <remarks>Overrides the list if there is already an associated list</remarks>
         public static void RegisterSet<T>(string path, T[] list) where T: Object
         {
             var hash = makeHashCode(path, typeof(T));
+            LoadedData[hash] = list;
+        }
+        
+        public static void RegisterSet(string path, Object[] list, Type type)
+        {
+            var hash = makeHashCode(path, type);
             LoadedData[hash] = list;
         }
 

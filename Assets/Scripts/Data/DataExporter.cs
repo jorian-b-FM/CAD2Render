@@ -21,8 +21,11 @@ namespace C2R
         public string exportFolderPath = "ExampleData/Default";
         private string _fullFolderPath;
 
-        [ContextMenu("Regenerate Files")]
-        void RegenerateFiles()
+        [InspectorButton(nameof(Export))]
+        public bool export;
+
+        [ContextMenu("Export to files")]
+        void Export()
         {
             // Use root folder (both in exe and in editor)
             if (!Path.IsPathRooted(exportFolderPath))
@@ -131,7 +134,7 @@ namespace C2R
                 meshData = new MeshData
                 {
                     Root = o,
-                    FileName = ModelExporter.ExportModel(_fullFolderPath, o, false),
+                    FileName = ModelExporter.Export(_fullFolderPath, o),
                     TreeLocation = o.name
                 };
             }
@@ -183,9 +186,25 @@ namespace C2R
                             foreach (var link in links)
                                 linksArr.Add(ToJsonNode(link));
                             break;
+                        case LightRandomizeHandler lightRandomizer:
+                            var environments = ResourceManager.LoadAll<Cubemap>(lightRandomizer.Dataset.environmentsPath);
+                            if (environments.Any())
+                            {
+                                string environmentPath = "ExportedEnvironments";
+                                string targetFolder = Path.Combine(_fullFolderPath, environmentPath);
+                                if (!Directory.Exists(targetFolder))
+                                    Directory.CreateDirectory(targetFolder);
+
+                                foreach (var environment in environments)
+                                {
+                                    var exportedFile = TextureExporter.Export(targetFolder, environment);
+                                }
+                                
+                                iData[datasetName][nameof(lightRandomizer.Dataset.environmentsPath)] = environmentPath;
+                            }
+                            break;
                         case ObjectRandomizeHandler objectRandomizer:
-                            var path = objectRandomizer.Dataset.modelsPath;
-                            var models = ResourceManager.LoadAll<GameObject>(path);
+                            var models = ResourceManager.LoadAll<GameObject>(objectRandomizer.Dataset.modelsPath);
                             var fakePath = $"{o.name}_objects{index}";
                             var di = new DirectoryInfo(Path.Combine(_fullFolderPath, fakePath));
                             if (!di.Exists)

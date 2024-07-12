@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using Assets.Scripts.io;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
@@ -24,8 +26,8 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
         RandomizerInterface.CloneDataset(ref dataset);
     }
 
-    private UnityEngine.Object[] cubeMaps;
-    private UnityEngine.Object[] projectorMaps;
+    private Texture[] cubeMaps;
+    private Texture[] projectorMaps;
 
     private List<Light> instantiatedLights;
     GameObject renderSettings = null;
@@ -38,12 +40,8 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
     {
         this.LinkGui();
 
-        if (dataset.environmentsPath != "")
-            cubeMaps = Resources.LoadAll(dataset.environmentsPath, typeof(Cubemap));
-        else cubeMaps = new UnityEngine.Object[0];
-        if (dataset.projectorTexturePath != "")
-            projectorMaps = Resources.LoadAll(dataset.projectorTexturePath, typeof(Texture));
-        else projectorMaps = new UnityEngine.Object[0];
+        cubeMaps = TryGetResources<Texture>(dataset.environmentsPath, typeof(Cubemap));
+        projectorMaps = TryGetResources<Texture>(dataset.projectorTexturePath);
 
         if (cubeMaps.Length == 0 && dataset.environmentsPath != "")
         {
@@ -59,6 +57,16 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
 
         instantiatedLights = new List<Light>();
     }
+
+    private static T[] TryGetResources<T>(string path, Type overrideType = null) where T: UnityEngine.Object
+    {
+        if (string.IsNullOrEmpty(path))
+            return Array.Empty<T>();
+
+        if (overrideType == null)
+            return ResourceManager.LoadAll<T>(path);
+        return ResourceManager.LoadAll(path, overrideType).OfType<T>().ToArray();
+    }
     
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
@@ -71,7 +79,6 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
 
     private void RandomizeExtraLights(ref RandomNumberGenerator rng)
     {
-
         foreach (Light lightsource in instantiatedLights)
         {
             Destroy(lightsource.gameObject);
@@ -120,17 +127,17 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
         // change texture on cube
         if (cubeMaps.Length > 0)
         {
-            Cubemap texture;
+            Texture texture;
             if (!dataset.pickRandomEnvironment)
             {
-                texture = (Cubemap)cubeMaps[this.LightIndex];
+                texture = cubeMaps[this.LightIndex];
                 this.LightIndex = (this.LightIndex + 1) % cubeMaps.Length;
             }
             else
-                texture = (Cubemap)cubeMaps[rng.IntRange(0, cubeMaps.Length)];
+                texture = cubeMaps[rng.IntRange(0, cubeMaps.Length)];
 
 
-            sky.hdriSky.value = texture;
+            sky.hdriSky.Override(texture);
         }
 
 

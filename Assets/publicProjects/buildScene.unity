@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 646.06036, g: 781.5958, b: 678.3337, a: 1}
+  m_IndirectSpecularColor: {r: 63.791878, g: 78.57737, b: 67.10868, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -501,7 +501,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   loadFromFolder: 1
-  folderPathToLoad: ExampleData/Rotor
+  folderPathToLoad: ExampleData/Default
   defaultDataObjects:
   - {fileID: 11400000, guid: 797f39fb57a83d341ac4383025cca854, type: 2}
   - {fileID: 11400000, guid: d2bc244aa4f7e744b878e69322769898, type: 2}
@@ -523,6 +523,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   exportFolderPath: ExampleData/Default
+  export: 0
 --- !u!1 &2045252193
 GameObject:
   m_ObjectHideFlags: 0
