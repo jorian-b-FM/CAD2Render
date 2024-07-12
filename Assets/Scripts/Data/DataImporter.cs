@@ -268,7 +268,7 @@ public class DataImporter : MonoBehaviour
             if (!Path.IsPathRooted(meshPath))
                 meshPath = Path.Combine(_fullFolderPath, meshPath);
 
-            var model = await LoadedModelsFactory.LoadModel(meshPath);
+            var model = await LoadedModelsFactory.LoadModelFromFile(meshPath);
 
             if (node.TryGetValue(nameof(MeshFilter.sharedMesh), out valueNode))
             {
@@ -463,18 +463,9 @@ public class DataImporter : MonoBehaviour
         
         string fullPath = Path.Combine(_fullFolderPath, path);
         
-        IList<GameObject> models = await LoadedModelsFactory.Load(fullPath);
-        if (!models.Any())
-            return false;
-        var list = new List<Material>();
-        foreach (var model in models)
-        {
-            var renderers = model.GetComponentsInChildren<MeshRenderer>();
-            foreach (var renderer in renderers)
-                list.AddRange(renderer.sharedMaterials);
-        }
+        materials = await LoadedModelsFactory.LoadMaterialsFromPath(fullPath);
         
-        ResourceManager.RegisterSet(path, list.ToArray());
+        ResourceManager.RegisterSet(path, materials);
         return true;
     }
     

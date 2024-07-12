@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Assets.Scripts.io;
 using C2R.Export;
 using SimpleJSON;
@@ -25,7 +26,7 @@ namespace C2R
         public bool export;
 
         [ContextMenu("Export to files")]
-        void Export()
+        async void Export()
         {
             // Use root folder (both in exe and in editor)
             if (!Path.IsPathRooted(exportFolderPath))
@@ -41,13 +42,14 @@ namespace C2R
             var randomizer = GetComponent<MainRandomizer>();
 
             var mainJson = ToJsonNodeWithJsonUtility(randomizer.Dataset);
-            File.WriteAllText(mainPath, mainJson.ToString(2));
+            await File.WriteAllTextAsync(mainPath, mainJson.ToString(2));
+            Debug.Log($"Data exported to '{mainPath}'");
 
             JSONNode randomizerJson = new JSONObject();
             var defaults = new JSONObject();
             foreach (Transform child in randomizer.transform)
             {
-                randomizerJson[child.name] = ToJsonNode(child);
+                randomizerJson[child.name] = await ToJsonNode(child);
             }
 
             var overrider = GetComponent<DataImporter>();
@@ -65,10 +67,11 @@ namespace C2R
                 }
             }
 
-            File.WriteAllText(randomizerPath, randomizerJson.ToString(2));
+            await File.WriteAllTextAsync(randomizerPath, randomizerJson.ToString(2));
+            Debug.Log($"Data exported to '{randomizerPath}'");
         }
 
-        private JSONNode ToJsonNode(UnityEngine.Transform o, MeshData meshData = default)
+        private async Task<JSONNode> ToJsonNode(Transform o, MeshData meshData = default)
         {
             var childObject = new JSONObject
             {
@@ -88,16 +91,16 @@ namespace C2R
             if (colliders.Any())
             {
                 var colliderArray = new JSONArray();
-                foreach (var collider in colliders)
+                foreach (var coll in colliders)
                 {
                     // Collider is an engine type and JsonUtility does not work for those
                     // So we have to do it manually
                     var colliderObject = new JSONObject
                     {
-                        [nameof(collider.isTrigger)] = collider.isTrigger,
+                        [nameof(coll.isTrigger)] = coll.isTrigger,
 
                     };
-                    switch (collider)
+                    switch (coll)
                     {
                         case MeshCollider meshCollider:
                             colliderObject[typeName] = nameof(MeshCollider);
@@ -120,8 +123,8 @@ namespace C2R
                             colliderObject[nameof(capsuleCollider.direction)] = capsuleCollider.direction;
                             break;
                         default:
-                            if (collider != null)
-                                Debug.LogWarning($"No support (yet) for collider type: {collider.GetType()}");
+                            if (coll != null)
+                                Debug.LogWarning($"No support (yet) for collider type: {coll.GetType()}");
                             break;
                     }
                     colliderArray.Add(colliderObject);
@@ -137,7 +140,7 @@ namespace C2R
                 meshData = new MeshData
                 {
                     Root = o,
-                    FileName = ModelExporter.Export(_fullFolderPath, "Data", o),
+                    FileName = await ModelExporter.Export(_fullFolderPath, "Data", o),
                     TreeLocation = o.name
                 };
             }
@@ -175,48 +178,9 @@ namespace C2R
             if (randomizers.Any())
             {
                 var arr = new JSONArray();
-                for (int index = 0; index < randomizers.Length; index++)
-                {
-                    var i = randomizers[index];
-                    var iData = ToJsonNode(i);
-                    switch (i)
-                    {
-                        case LightRandomizeHandler lightRandomizer:
-                            var environments = ResourceManager.LoadAll<Cubemap>(lightRandomizer.Dataset.environmentsPath);
-                            if (environments.Any())
-                            {
-                                string environmentPath = "ExportedEnvironments";
-                                string targetFolder = Path.Combine(_fullFolderPath, environmentPath);
-                                if (!Directory.Exists(targetFolder))
-                                    Directory.CreateDirectory(targetFolder);
-
-                                foreach (var environment in environments)
-                                {
-                                    var exportedFile = TextureExporter.Export(targetFolder, environment);
-                                }
-                                
-                                iData[datasetName][nameof(lightRandomizer.Dataset.environmentsPath)] = environmentPath;
-                            }
-                            break;
-                        case ObjectRandomizeHandler objectRandomizer:
-                            var models = ResourceManager.LoadAll<GameObject>(objectRandomizer.Dataset.modelsPath);
-                            var fakePath = $"{o.name}_objects{index}";
-                            var di = new DirectoryInfo(Path.Combine(_fullFolderPath, fakePath));
-                            if (!di.Exists)
-                                di.Create();
-
-                            foreach (var model in models)
-                            {
-                                var json = ToJsonNode(model.transform, meshData);
-                                File.WriteAllText(Path.Combine(di.FullName, $"{model.name}.json"), json.ToString(2));
-                            }
-
-                            iData[datasetName][nameof(objectRandomizer.Dataset.modelsPath)] = fakePath;
-                            break;
-                    }
-
-                    arr.Add(iData);
-                }
+                var tasks = randomizers.Select(ToJsonNode);
+                foreach (var task in tasks)
+                    arr.Add(await task);
                 childObject[randomizerName] = arr;
             }
 
@@ -224,12 +188,9 @@ namespace C2R
             if (interfaces.Any())
             {
                 var arr = new JSONArray();
-                for (int index = 0; index < interfaces.Length; index++)
-                {
-                    var i = interfaces[index];
-                    var node = ToJsonNode(i);
-                    arr.Add(node);
-                }
+                var tasks = interfaces.Select(ToJsonNode);
+                foreach (var task in tasks)
+                    arr.Add(await task);
                 childObject[materialRandomizerName] = arr;
             }
 
@@ -238,7 +199,7 @@ namespace C2R
                 var childrenData = new JSONObject();
                 
                 foreach (Transform child in o)
-                    childrenData.Add(child.name, ToJsonNode(child, meshData));
+                    childrenData.Add(child.name, await ToJsonNode(child, meshData));
 
                 childObject[childrenName] = childrenData;
             }
@@ -251,16 +212,95 @@ namespace C2R
             return Path.Join(data.TreeLocation, name).Replace("\\", "/");
         }
 
-        private JSONNode ToJsonNode(UnityEngine.Behaviour o)
+        private async Task<JSONNode> ToJsonNode(Behaviour o)
         {
             var node = new JSONObject
             {
                 [typeName] = GetTypeName(o),
                 [dataName] = ToJsonNodeWithJsonUtility(o),
             };
-            if (o is IDatasetUser datasetUser)
-                node[datasetName] = ToJsonNodeWithJsonUtility(datasetUser.GetDataset());
+            
+            if (o is not IDatasetUser datasetUser)
+                return node;
+            
+            var dataset = datasetUser.GetDataset();
+            node[datasetName] = ToJsonNodeWithJsonUtility(dataset);
+            
+            var i = o.GetComponentIndex();
+                
+            switch (dataset)
+            {
+                case MaterialModelRandomizeData materialRandomizeData:
+                    // // HDRP -> gltf seem to not be super well supported, so we'll disable it for now
+                    // var materialsPath = $"{o.name}_materials{i}";
+                    // if (await TryExportMaterials(materialRandomizeData.materialsPath, materialsPath))
+                    //     node[datasetName][nameof(materialRandomizeData.materialsPath)] = materialsPath;
+                    break;
+                case LightRandomizeData lightRandomizeData:
+                    var environmentsPath = TryExportCubemaps(lightRandomizeData.environmentsPath);
+                    node[datasetName][nameof(lightRandomizeData.environmentsPath)] = environmentsPath;
+                    break;
+                case ObjectRandomizeData objectRandomizeData:
+                    var modelsPath = $"{o.name}_objects{i}";
+                    if (await TryExportPrefabs(objectRandomizeData.modelsPath, modelsPath))
+                        node[datasetName][nameof(objectRandomizeData.modelsPath)] = modelsPath;
+                    break;
+            }
             return node;
+        }
+
+        private async Task<bool> TryExportMaterials(string path, string savePath)
+        {
+            var materials = ResourceManager.LoadAll<Material>(path);
+            var di = new DirectoryInfo(Path.Combine(_fullFolderPath, savePath));
+            if (!di.Exists)
+                di.Create();
+            
+            foreach (var material in materials)
+            {
+                var o = new GameObject(material.name);
+                // Need both a MeshFilter & MeshRenderer before gltf picks it up
+                _ = o.AddComponent<MeshFilter>();
+                var meshRenderer = o.AddComponent<MeshRenderer>();
+                meshRenderer.material = material;
+                await ModelExporter.Export(di, o.transform);
+                Object.DestroyImmediate(o);
+            }
+
+            return true;
+        }
+
+        private async Task<bool> TryExportPrefabs(string path, string savePath)
+        {
+            var models = ResourceManager.LoadAll<GameObject>(path);
+            var di = new DirectoryInfo(Path.Combine(_fullFolderPath, savePath));
+            if (!di.Exists)
+                di.Create();
+
+            foreach (var model in models)
+            {
+                var json = await ToJsonNode(model.transform);
+                await File.WriteAllTextAsync(Path.Combine(di.FullName, $"{model.name}.json"), json.ToString(2));
+            }
+
+            return true;
+        }
+
+        private string TryExportCubemaps(string path)
+        {
+            var environments = ResourceManager.LoadAll<Cubemap>(path);
+            if (!environments.Any())
+                return null;
+            
+            string environmentPath = "ExportedEnvironments";
+            string targetFolder = Path.Combine(_fullFolderPath, environmentPath);
+            if (!Directory.Exists(targetFolder))
+                Directory.CreateDirectory(targetFolder);
+
+            foreach (var environment in environments)
+                TextureExporter.Export(targetFolder, environment);
+
+            return environmentPath;
         }
 
         private JSONNode ToJsonNodeWithJsonUtility(UnityEngine.Object o)

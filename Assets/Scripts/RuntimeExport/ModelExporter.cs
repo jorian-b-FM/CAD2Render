@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using GLTFast.Export;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -9,20 +10,29 @@ namespace C2R.Export
     public static class ModelExporter
     {
         /// <returns>The filename of the exported model</returns>
-        public static string Export(string directory, Transform o)
+        public static async Task<string> Export(DirectoryInfo info, Transform o)
         {
-            return ExportToGltf(directory, "", o.name, o);
+            return await ExportToGltf(info.FullName, "", o.name, o);
+        }
+        
+        /// <returns>The filename of the exported model</returns>
+        public static async Task<string> Export(string directory, Transform o)
+        {
+            return await ExportToGltf(directory, "", o.name, o);
         }
         
         /// <returns>The path of the exported model relative to root.</returns>
-        public static string Export(string root, string directory, Transform o)
+        public static async Task<string> Export(string root, string directory, Transform o)
         {
-            return ExportToGltf(root, directory, o.name, o);
+            return await ExportToGltf(root, directory, o.name, o);
         }
 
-        private static string ExportToGltf(string root, string directory, string fileName, Transform o, bool binary = false)
+        private static async Task<string> ExportToGltf(string root, string directory, string fileName, Transform o, bool binary = false)
         {
-            var export = new GLTFast.Export.GameObjectExport();
+            var export = new GLTFast.Export.GameObjectExport(new ExportSettings
+            {
+                FileConflictResolution = FileConflictResolution.Overwrite
+            });
             // Instantiate it & reset transform
             var clone = Object.Instantiate(o, null, false);
             clone.name = o.name;
@@ -40,7 +50,7 @@ namespace C2R.Export
             
             var resultFile = PathHelper.ToSafeFilename(targetFolder, fileName, ext);
             fileName = Path.GetFileName(resultFile);
-            export.SaveToFileAndDispose(resultFile);
+            await export.SaveToFileAndDispose(resultFile);
             
             return Path.Combine(directory, fileName).Replace("\\", "/");
         }
