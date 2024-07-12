@@ -9,14 +9,58 @@ public static class LoadedModelsFactory
     private static Dictionary<string, GameObject> _modelByPath = new Dictionary<string, GameObject>();
 
     private static GameObject _host;
+    
+    private static readonly string[] SupportedExtensions = new []
+    {
+        ".glb",
+        ".gltf"
+    };
 
+    public static bool IsValidPath(string path)
+    {
+        if (!File.Exists(path))
+            return false;
+        var ext = Path.GetExtension(path).ToLower();
+        return SupportedExtensions.Contains(ext);
+    }
+
+    public static async Task<IList<GameObject>> Load(string path)
+    {
+        if (IsValidPath(path))
+            return new[] {
+                await LoadModel(path)
+            };
+
+        return await LoadModels(path);
+    }
+    
+    public static async Task<IList<GameObject>> LoadModels(string folderPath)
+    {
+        var taskList = new List<Task<GameObject>>();
+        foreach (var file in Directory.GetFiles(folderPath))
+        {
+            var task = LoadModel(file);
+            taskList.Add(task);
+        }
+
+        var result = new List<GameObject>();
+        foreach (var task in taskList)
+        {
+            var obj = await task;
+            if (obj != null)
+                result.Add(obj);
+        }
+
+        return result;
+    }
+    
     public static async Task<GameObject> LoadModel(string path)
     {
         if (_modelByPath.TryGetValue(path, out GameObject result))
             return result;
 
         GameObject go = null;
-        var ext = Path.GetExtension(path);
+        var ext = Path.GetExtension(path).ToLower();
         switch (ext)
         {
             case ".glb":

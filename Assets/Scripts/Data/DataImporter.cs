@@ -208,7 +208,7 @@ public class DataImporter : MonoBehaviour
             SetupColliders(valueNode, childGO);
         
         if (node.TryGetValue(materialRandomizerName, out valueNode))
-            CreateMaterialRandomizers(valueNode, childGO);
+            await CreateMaterialRandomizers(valueNode, childGO);
         
         if (node.TryGetValue(randomizerName, out valueNode))
             await CreateRandomizers(valueNode, childGO);
@@ -285,8 +285,6 @@ public class DataImporter : MonoBehaviour
                 foreach (Transform child in model.transform)
                     CustomInstantiate(child, go.transform);
             }
-            
-            Debug.Log("GLTF file imported successfully.");
         }
     }
 
@@ -381,77 +379,10 @@ public class DataImporter : MonoBehaviour
 
         // Loop over all children and parse them into creating MonoBehaviours
         foreach (var node in randomizerNode.Children)
-        {
-            if (!TryCreateBehaviour<RandomizerInterface>(node, target, out var behaviour))
-                continue;
-
-            // Custom behaviour per handler type
-            switch (behaviour)
-            {
-                case IDatasetUser<LightRandomizeData> lightRandomizer:
-                    string environmentPath = lightRandomizer.Dataset.environmentsPath;
-                    Texture[] cubemaps = ResourceManager.LoadAll<Cubemap>(environmentPath);
-                    // If it isn't a valid resource path (no resources found). Check if there are any jsons
-                    if (!cubemaps.Any())
-                    {
-                        string fullPath = Path.Combine(_fullFolderPath, environmentPath);
-                        
-                        if (Directory.Exists(fullPath))
-                        {
-                            var cubemapTextures = Directory.GetFiles(fullPath, "*.exr");
-
-                            cubemaps = new Texture[cubemapTextures.Length];
-
-                            for (var i = 0; i < cubemapTextures.Length; i++)
-                            {
-                                var cube = CubemapLoader.Load(cubemapTextures[i]);
-                                _createdResources.Add(cube);
-                                cubemaps[i] = cube;
-                            }
-
-                            // Note: use environmentPath and not fullPath here as we want to override the result of the dataset
-                            ResourceManager.RegisterSet(environmentPath, cubemaps, typeof(Cubemap));
-                        }
-                        else
-                            Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
-                    }
-                    break;
-                case IDatasetUser<ObjectRandomizeData> objectRandomizer:
-                    string modelsPath = objectRandomizer.Dataset.modelsPath;
-                    var objects = ResourceManager.LoadAll<GameObject>(modelsPath);
-                    // If it isn't a valid resource path (no resources found). Check if there are any jsons
-                    if (!objects.Any())
-                    {
-                        string fullPath = Path.Combine(_fullFolderPath, modelsPath);
-
-                        if (Directory.Exists(fullPath))
-                        {
-                            var objectJsons = Directory.GetFiles(fullPath, "*.json");
-
-                            objects = new GameObject[objectJsons.Length];
-
-                            for (var i = 0; i < objectJsons.Length; i++)
-                            {
-                                var jsonPath = objectJsons[i];
-                                var childName = Path.GetFileNameWithoutExtension(jsonPath);
-                                var json = await File.ReadAllTextAsync(jsonPath);
-                                var objectNode = JSON.Parse(json);
-
-                                objects[i] = await TryCreateChild(childName, objectNode, _fakeResources.transform);
-                            }
-
-                            // Note: use modelsPath and not fullPath here as we want to override the result of the dataset
-                            ResourceManager.RegisterSet(modelsPath, objects);
-                        }
-                        else
-                            Logger.LogWarning($"ObjectRandomizeHandler for {target.name} does not have any target objects.");
-                    }
-                    break;
-            }
-        }
+            await TryCreateBehaviour<RandomizerInterface>(node, target);
     }
 
-    private void CreateMaterialRandomizers(JSONNode randomizersNode, GameObject target)
+    private async Task CreateMaterialRandomizers(JSONNode randomizersNode, GameObject target)
     {
         if (randomizersNode is not JSONArray)
         {
@@ -460,10 +391,10 @@ public class DataImporter : MonoBehaviour
         }
 
         foreach (var linkNode in randomizersNode.Children)
-            TryCreateBehaviour<MaterialRandomizerInterface>(linkNode, target, out _);
+            await TryCreateBehaviour<MaterialRandomizerInterface>(linkNode, target);
     }
 
-    private bool TryCreateBehaviour<T>(JSONNode node, GameObject target, out T behaviour)
+    private async Task<T> TryCreateBehaviour<T>(JSONNode node, GameObject target)
         where T : MonoBehaviour
     {
         var behaviourType = node[typeName];
@@ -471,23 +402,23 @@ public class DataImporter : MonoBehaviour
         if (type == null || !typeof(T).IsAssignableFrom(type))
         {
             Logger.LogError($"{behaviourType} is not a valid type. (Resolved to '{type?.FullName}')");
-            behaviour = null;
-            return false;
+            return null;
         }
 
         // Add component & override the MonoBehaviour data if needed
-        behaviour = target.AddComponent(type) as T;
+        var behaviour = target.AddComponent(type) as T;
         if (node.TryGetValue(dataName, out JSONNode dataNode))
             JsonUtility.FromJsonOverwrite(dataNode.ToString(), behaviour);
 
         // We cannot override values inside of a nested Object through the above, so do that here
-        return TryOverrideDataset(behaviour, node);
+        await TryOverrideDataset(behaviour, node);
+        return behaviour;
     }
 
-    private bool TryOverrideDataset(Object o, JSONNode node)
+    private async Task TryOverrideDataset(Object o, JSONNode node)
     {
         if (o is not IDatasetUser datasetUser)
-            return true;
+            return;
 
         var datasetType = datasetUser.GetDataSetType();
         if (_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
@@ -504,6 +435,107 @@ public class DataImporter : MonoBehaviour
         if (node.TryGetValue(datasetName, out JSONNode dataNode))
             JsonUtility.FromJsonOverwrite(dataNode.ToString(), so);
         datasetUser.SetDataset(so);
+        
+        // Custom behaviour per RandomizeData type. This is (usually) for loading in dynamic resources 
+        switch (so)
+        {
+            case MaterialModelRandomizeData materialRandomizeData:
+                if (!await TryLoadMaterials(materialRandomizeData.materialsPath))
+                    Logger.LogWarning($"MaterialModelRandomizeData for {o.name} does not have any targets.");
+                break;
+            case ObjectRandomizeData objectRandomizeData:
+                if (!await TryLoadPrefabs(objectRandomizeData.modelsPath))
+                    Logger.LogWarning($"ObjectRandomizeHandler for {o.name} does not have any targets.");
+                break;
+            case LightRandomizeData lightRandomizeData:
+                if (!TryLoadCubemaps(lightRandomizeData.environmentsPath))
+                    Logger.LogWarning($"LightRandomizeData for {o.name} does not have any targets.");
+                break;
+        }
+    }
+
+    private async Task<bool> TryLoadMaterials(string path)
+    {
+        var materials = ResourceManager.LoadAll<Material>(path);
+        // If it isn't a valid resource path (no resources found). Check if there are any jsons
+        if (materials.Any())
+            return true;
+        
+        string fullPath = Path.Combine(_fullFolderPath, path);
+        
+        IList<GameObject> models = await LoadedModelsFactory.Load(fullPath);
+        if (!models.Any())
+            return false;
+        var list = new List<Material>();
+        foreach (var model in models)
+        {
+            var renderers = model.GetComponentsInChildren<MeshRenderer>();
+            foreach (var renderer in renderers)
+                list.AddRange(renderer.sharedMaterials);
+        }
+        
+        ResourceManager.RegisterSet(path, list.ToArray());
+        return true;
+    }
+    
+    private async Task<bool> TryLoadPrefabs(string path)
+    {
+        var objects = ResourceManager.LoadAll<GameObject>(path);
+        // If it isn't a valid resource path (no resources found). Check if there are any jsons
+        if (objects.Any())
+            return true;
+        
+        string fullPath = Path.Combine(_fullFolderPath, path);
+
+        if (!Directory.Exists(fullPath))
+            return false;
+        
+        var objectJsons = Directory.GetFiles(fullPath, "*.json");
+
+        objects = new GameObject[objectJsons.Length];
+
+        for (var i = 0; i < objectJsons.Length; i++)
+        {
+            var jsonPath = objectJsons[i];
+            var childName = Path.GetFileNameWithoutExtension(jsonPath);
+            var json = await File.ReadAllTextAsync(jsonPath);
+            var objectNode = JSON.Parse(json);
+
+            objects[i] = await TryCreateChild(childName, objectNode, _fakeResources.transform);
+        }
+
+        // Note: use modelsPath and not fullPath here as we want to override the result of the dataset
+        ResourceManager.RegisterSet(path, objects);
+        return true;
+    }
+
+    private bool TryLoadCubemaps(string path)
+    {
+        Texture[] cubemaps = ResourceManager.LoadAll<Cubemap>(path);
+        // If it isn't a valid resource path (no resources found). Check if there are any jsons
+        if (cubemaps.Any())
+            return true;
+        
+        string fullPath = Path.Combine(_fullFolderPath, path);
+
+        var di = new DirectoryInfo(fullPath);
+
+        if (!di.Exists)
+            return false;
+
+        var cubemapTextures = GetFiles(di, "*.exr", "*.png");
+
+        cubemaps = new Texture[cubemapTextures.Count];
+
+        for (var i = 0; i < cubemapTextures.Count; i++)
+        {
+            var cube = CubemapLoader.Load(cubemapTextures[i].FullName);
+            _createdResources.Add(cube);
+            cubemaps[i] = cube;
+        }
+
+        // Note: use environmentPath and not fullPath here as we want to override the result of the dataset
+        ResourceManager.RegisterSet(path, cubemaps, typeof(Cubemap));
         return true;
     }
 
@@ -519,5 +551,14 @@ public class DataImporter : MonoBehaviour
         var clone = Instantiate(objectToClone, parent, false);
         clone.name = objectToClone.name;
         return clone;
+    }
+
+    private static IList<FileInfo> GetFiles(DirectoryInfo di, params string[] exts)
+    {
+        List<FileInfo> list = new List<FileInfo>();
+        foreach (string ext in exts)
+            list.AddRange(di.GetFiles(ext));
+
+        return list;
     }
 }
