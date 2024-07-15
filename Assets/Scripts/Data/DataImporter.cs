@@ -5,8 +5,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Assets.Scripts.io;
 using C2R;
+using SFB;
 using SimpleJSON;
+using Substance.Game;
 using UnityEngine;
+using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 using static ConstDataValues;
 using Task = System.Threading.Tasks.Task;
@@ -41,19 +44,20 @@ public class DataImporter : MonoBehaviour
     private List<Object> _createdResources;
 
     private GameObject _fakeResources;
+    
+    UIDocument UIDoc;
+    Button loadButton;
 
-    async void Awake()
+    void Awake()
     {
-        if (!loadFromFolder) return;
-
+        // Setup fake resources
+        // as we need to load some resources, and we need those to be dynamic, this handles that
         _createdResources = new List<Object>();
 
         _fakeResources = new GameObject("[GENERATED] Fake Resources");
         _fakeResources.SetActive(false);
-
-        bool wasActive = gameObject.activeSelf;
-        gameObject.SetActive(false);
-
+        
+        // Setup the defaults for the ScriptableObjects
         _defaultObjectByType = new Dictionary<Type, ScriptableObject>();
         foreach (var defaultDataObject in defaultDataObjects)
         {
@@ -66,14 +70,88 @@ public class DataImporter : MonoBehaviour
                     $"Multiple of type {type.Name} in the Defaults of {nameof(DataImporter)}. Only the first one will be used.");
         }
         
-        // Use root folder (both in exe and in editor)
-        if (!Path.IsPathRooted(folderPathToLoad))
-            _fullFolderPath = Path.Combine(Application.dataPath, "..", folderPathToLoad);
-        _fullFolderPath = Path.GetFullPath(_fullFolderPath);
+        // Bind button
+        var GUI = GameObject.FindGameObjectWithTag("GUI");
+        if (!GUI)
+        {
+            Debug.LogWarning("GUI not found while linking buttons");
+            return;
+        }
+        
+        UIDoc = GUI.GetComponent<UIDocument>();
+        if (!UIDoc)
+        {
+            Debug.LogWarning("UIDocument not found in the GUI while linking buttons");
+            return;
+        }
+        
+        loadButton = UIDoc.rootVisualElement.Q<Button>("LoadButton");
+        loadButton.visible = true;
+        loadButton.RegisterCallback<ClickEvent>(LoadButtonClicked);
+        
+        if (!loadFromFolder) return;
+        
+        // Check command line args for a different path
+        if (!Application.isEditor)
+        {
+            var args = Environment.GetCommandLineArgs();
+        
+            // Start i at 1 to skip 'unity.exe'
+            for (int i = 1; i < args.Length; ++i)
+            {
+                // if the args starts with a -, skip the next 1 as well.
+                if (args[i].StartsWith("-"))
+                    continue;
 
-        await LoadFromDirectory(_fullFolderPath);
+                folderPathToLoad = args[i];
+                Debug.Log($"Loading from '{args[i]}' instead due to command line arg.");
+            }
+        }
 
+        LoadFromFolder(folderPathToLoad);
+    }
+
+    private void LoadButtonClicked(ClickEvent evt)
+    {
+        var paths = StandaloneFileBrowser.OpenFolderPanel("Choose a folder", "", false);
+        if (paths.Any())
+            LoadFromFolder(paths.First());
+    }
+
+    private async void LoadFromFolder(string folder)
+    {
+        // Disable self, so ensure no object activates and requires some other object that will be created later
+        bool wasActive = gameObject.activeSelf;
+        gameObject.SetActive(false);
+        
+        // Root the path, if not done so already
+        if (!Path.IsPathRooted(folder))
+        {
+            _fullFolderPath = Path.Combine(Application.dataPath, "..", folder);
+            _fullFolderPath = Path.GetFullPath(_fullFolderPath);
+        }
+        else
+            _fullFolderPath = folder;
+
+        if (!Directory.Exists(folder))
+        {
+            Logger.LogError($"Path '{_fullFolderPath}' does not exist");
+            return;
+        }
+        
+        Debug.Log($"Loading from '{_fullFolderPath}'");
+
+        var randomizer = GetComponent<MainRandomizer>();
+
+        var filePath = Path.Combine(folder, "main.json");
+        TryLoadDataSet(filePath, randomizer);
+
+        filePath = Path.Combine(folder, "randomizers.json");
+        await TryLoadRandomizerSet(filePath, randomizer);
+        
         gameObject.SetActive(wasActive || gameObject.activeSelf);
+        
+        randomizer.ReloadDataset();
     }
 
     private void OnDestroy()
@@ -85,20 +163,7 @@ public class DataImporter : MonoBehaviour
         }
     }
 
-    private async Task LoadFromDirectory(string folder)
-    {
-        if (!Directory.Exists(folder)) return;
-
-        var randomizer = GetComponent<MainRandomizer>();
-
-        var filePath = Path.Combine(folder, "main.json");
-        TryLoadDataSet(filePath, randomizer);
-
-        filePath = Path.Combine(folder, "randomizers.json");
-        await TryLoadRandomizerSet(filePath, randomizer);
-    }
-
-    private static bool TryLoadDataSet(string filePath, MainRandomizer randomizer)
+    private bool TryLoadDataSet(string filePath, MainRandomizer randomizer)
     {
         if (!File.Exists(filePath))
         {
@@ -110,7 +175,7 @@ public class DataImporter : MonoBehaviour
         {
             var json = File.ReadAllText(filePath);
             // instantiate so we do not edit the asset
-            var newDataset = CustomInstantiate(randomizer.Dataset);
+            var newDataset = GetDefaultDataset(randomizer);
             JsonUtility.FromJsonOverwrite(json, newDataset);
             randomizer.Dataset = newDataset;
             return true;
@@ -420,18 +485,8 @@ public class DataImporter : MonoBehaviour
         if (o is not IDatasetUser datasetUser)
             return;
 
-        var datasetType = datasetUser.GetDataSetType();
-        if (_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
-        {
-            // Instantiate it so we have a copy since we might override some values
-            so = CustomInstantiate(so);
-        }
-        else
-        {
-            Logger.LogError($"No default defined for type {datasetType.Name}. A default object will be created but this might result in further errors.");
-            so = ScriptableObject.CreateInstance(datasetType);
-        }
-        
+        var so = GetDefaultDataset(datasetUser);
+
         if (node.TryGetValue(datasetName, out JSONNode dataNode))
             JsonUtility.FromJsonOverwrite(dataNode.ToString(), so);
         datasetUser.SetDataset(so);
@@ -452,6 +507,26 @@ public class DataImporter : MonoBehaviour
                     Logger.LogWarning($"LightRandomizeData for {o.name} does not have any targets.");
                 break;
         }
+    }
+
+    private T GetDefaultDataset<T>(IDatasetUser<T> datasetUser)
+        where T : ScriptableObject
+        => (T) GetDefaultDataset((IDatasetUser) datasetUser);
+    private ScriptableObject GetDefaultDataset(IDatasetUser datasetUser)
+    {
+        var datasetType = datasetUser.GetDataSetType();
+        if (_defaultObjectByType.TryGetValue(datasetType, out ScriptableObject so))
+        {
+            // Instantiate it so we have a copy since we might override some values
+            so = CustomInstantiate(so);
+        }
+        else
+        {
+            Logger.LogError($"No default defined for type {datasetType.Name}. A default object will be created but this might result in further errors.");
+            so = ScriptableObject.CreateInstance(datasetType);
+        }
+
+        return so;
     }
 
     private async Task<bool> TryLoadMaterials(string path)

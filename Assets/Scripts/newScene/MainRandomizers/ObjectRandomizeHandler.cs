@@ -70,6 +70,13 @@ public class ObjectRandomizeHandler : RandomizerInterface, IDatasetUser<ObjectRa
         }
     }
 
+    protected override void OnDestroy()
+    {
+        DestroyModels();
+        
+        base.OnDestroy();
+    }
+
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         DestroyModels();

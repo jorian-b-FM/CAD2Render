@@ -16,7 +16,7 @@ namespace C2R
             return asset.name;
 #endif
         }
-        
+
         public static Bounds Combine(IList<Bounds> bounds)
         {
             if (bounds.Count <= 1) return bounds.FirstOrDefault();
@@ -34,6 +34,14 @@ namespace C2R
                 .Select(x => x.sharedMesh.bounds)
                 .ToArray();
             return Combine(bounds);
+        }
+
+        public static void Quit()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#endif
+            Application.Quit();
         }
     }
 }

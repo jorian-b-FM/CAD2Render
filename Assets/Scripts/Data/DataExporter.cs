@@ -28,6 +28,11 @@ namespace C2R
         [ContextMenu("Export to files")]
         async void Export()
         {
+            await ExportAsync();
+        }
+        
+        async Task ExportAsync()
+        {
             // Use root folder (both in exe and in editor)
             if (!Path.IsPathRooted(exportFolderPath))
                 _fullFolderPath = Path.Combine(Application.dataPath, "..", exportFolderPath);

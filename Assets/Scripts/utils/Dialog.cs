@@ -21,9 +21,8 @@ public class Dialog : MonoBehaviour
     // Only show it if needed.
     private bool _active = false;
     
-    public GUIStyle Style { get; set; }
-    public GUIStyle TextStyle { get; set; }
     private static GUIStyle _defaultStyle;
+    private static GUIStyle _textStyle;
 
 
     public static Dialog Show(string title, string text, params DialogButtonData[] buttons)
@@ -31,16 +30,6 @@ public class Dialog : MonoBehaviour
 
     public static Dialog Show(string title, string text, float width, float height, params DialogButtonData[] buttons)
     {
-        if (_defaultStyle == null)
-        {
-            var tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, new Color(0.2f, 0.2f, 0.2f));
-            tex.Apply();
-
-            _defaultStyle = new GUIStyle("window");
-            _defaultStyle.onNormal.background = _defaultStyle.normal.background = tex;
-        }
-        
         var go = new GameObject("[GENERATED] Dialog");
         var dialog = go.AddComponent<Dialog>();
         dialog.Rect = new Rect((Screen.width - width) / 2f, (Screen.height - height) / 2f, width, height);
@@ -61,12 +50,6 @@ public class Dialog : MonoBehaviour
         else
             dialog._buttons = buttons;
 
-        dialog.Style = _defaultStyle;
-        dialog.TextStyle = new GUIStyle("label")
-        {
-            alignment = TextAnchor.MiddleCenter
-        };
-
         dialog._active = true;
         return dialog;
     }
@@ -80,24 +63,37 @@ public class Dialog : MonoBehaviour
     public void QuitApplication()
     {
         Close();
-#if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
-#endif
-        Application.Quit();
+        C2R.Utility.Quit();
     }
 
     void OnGUI()
     {
         if (_active)
         {
-            Rect = GUI.Window(0, Rect, DialogWindow, Title, Style);
+            if (_defaultStyle == null)
+            {
+                var tex = new Texture2D(1, 1);
+                tex.SetPixel(0, 0, new Color(0.2f, 0.2f, 0.2f));
+                tex.Apply();
+
+                _defaultStyle = new GUIStyle("window");
+                _defaultStyle.onNormal.background = _defaultStyle.normal.background = tex;
+            }
+            
+            _textStyle = new GUIStyle(GUI.skin.label)
+            {
+                alignment = TextAnchor.MiddleCenter
+            };
+
+            
+            Rect = GUI.Window(0, Rect, DialogWindow, Title, _defaultStyle);
         }
     }
 
     // This is the actual window.
     void DialogWindow(int windowID)
     {
-        GUILayout.Label(Text, TextStyle);
+        GUILayout.Label(Text, _textStyle);
 
         GUILayout.BeginHorizontal();
         foreach (var button in _buttons)

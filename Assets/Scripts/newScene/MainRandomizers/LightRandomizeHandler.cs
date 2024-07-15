@@ -58,6 +58,13 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
         instantiatedLights = new List<Light>();
     }
 
+    protected override void OnDestroy()
+    {
+        DestroyLights();
+        
+        base.OnDestroy();
+    }
+
     private static T[] TryGetResources<T>(string path, Type overrideType = null) where T: UnityEngine.Object
     {
         if (string.IsNullOrEmpty(path))
@@ -79,11 +86,7 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
 
     private void RandomizeExtraLights(ref RandomNumberGenerator rng)
     {
-        foreach (Light lightsource in instantiatedLights)
-        {
-            Destroy(lightsource.gameObject);
-        }
-        instantiatedLights.Clear();
+        DestroyLights();
 
 
         for (int i = 0; i < dataset.numLightsources; ++i)
@@ -110,7 +113,19 @@ public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRand
                 lightSource.color = Color.HSVToRGB(rng.Next(), s, 1.0f);
             }
         }
+    }
 
+    private void DestroyLights()
+    {
+        if (instantiatedLights == null)
+            return;
+        
+        foreach (Light lightsource in instantiatedLights)
+        {
+            Destroy(lightsource.gameObject);
+        }
+
+        instantiatedLights.Clear();
     }
 
     private void RandomizeEnvironment(ref RandomNumberGenerator rng)
