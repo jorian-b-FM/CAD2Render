@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 
 public struct DialogButtonData
@@ -23,6 +25,9 @@ public class Dialog : MonoBehaviour
     
     private static GUIStyle _defaultStyle;
     private static GUIStyle _textStyle;
+
+    public static bool HasActiveDialog => _activeDialogs.Any();
+    private static List<Dialog> _activeDialogs = new List<Dialog>();
 
 
     public static Dialog Show(string title, string text, params DialogButtonData[] buttons)
@@ -51,12 +56,14 @@ public class Dialog : MonoBehaviour
             dialog._buttons = buttons;
 
         dialog._active = true;
+        _activeDialogs.Add(dialog);
         return dialog;
     }
 
     public void Close()
     {
         _active = false;
+        _activeDialogs.Remove(this);
         Destroy(gameObject);
     }
 

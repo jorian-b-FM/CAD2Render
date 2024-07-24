@@ -254,8 +254,9 @@ public class DataImporter : MonoBehaviour
 
         if (node.TryGetValue(tagName, out valueNode))
             childGO.tag = valueNode;
-        else if (childName.StartsWith("keypoint", StringComparison.InvariantCultureIgnoreCase))
-            childGO.tag = "Keypoint";
+        else
+            SetKeypointTagIfNeeded(childGO);
+
 
         if (node.TryGetValue(poseName, out valueNode))
             ReadPose(valueNode, child);
@@ -343,13 +344,28 @@ public class DataImporter : MonoBehaviour
                 if (subMesh == null)
                     Logger.LogError($"Could not find mesh '{submeshName}' in '{meshPath}'");
                 else
-                    CustomInstantiate(subMesh, go.transform);
+                {
+                    var subMeshInstance = CustomInstantiate(subMesh, go.transform);
+                    SetKeypointTagIfNeeded(subMeshInstance.gameObject);
+                }
             }
             else // if no submesh was specified, just instantiate the whole thing
             {
                 foreach (Transform child in model.transform)
-                    CustomInstantiate(child, go.transform);
+                {
+                    var childInstance = CustomInstantiate(child, go.transform);
+                    SetKeypointTagIfNeeded(childInstance.gameObject);
+                }
             }
+        }
+    }
+
+    private static void SetKeypointTagIfNeeded(GameObject go)
+    {
+        foreach (Transform child in go.transform)
+        {
+            if (child.name.StartsWith("keypoint", StringComparison.InvariantCultureIgnoreCase))
+                child.gameObject.tag = "Keypoint";
         }
     }
 

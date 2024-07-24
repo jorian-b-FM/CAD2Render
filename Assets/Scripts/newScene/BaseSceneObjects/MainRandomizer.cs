@@ -193,6 +193,12 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
         }
         if (dataset.outputPath[dataset.outputPath.Length-1] != '/' && dataset.outputPath[dataset.outputPath.Length-1] != '\\')
             dataset.outputPath += "/";
+            
+        // If there's an active dialog, wait for it to resolve, it might already be asking to create the directory    
+        while (Dialog.HasActiveDialog)
+        {
+            await Task.Delay(50);
+        }
 
         if (!Directory.Exists(dataset.outputPath))
         {
