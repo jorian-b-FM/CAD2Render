@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
+using System.IO.Compression;
 
 public static class LoadedModelsFactory
 {
@@ -40,9 +41,27 @@ public static class LoadedModelsFactory
     /// Gets all materials of a model at a certain path
     public static async Task<Material[]> LoadMaterialsFromFile(string path)
     {
-        // Load the model file
-        _ = await LoadModelFromFile(path);
-        // Now the dictionary should be filled in.
+        // First check the cache
+        if (_materialsByPath.TryGetValue(path, out Material[] result))
+            return result;
+
+
+        var ext = Path.GetExtension(path);
+        switch (ext)
+        {
+            case ".zip":
+                var tempPath = UnzipToTempPath(path);
+                _materialsByPath[path] = await LoadMaterialsFromFolder(tempPath);
+                break;
+            case ".mtlx":
+                _materialsByPath[path] = await LoadMaterialX(path);
+                break;
+            default:
+                // This returns a model, but also fills the cache with the materials
+                _ = await LoadModelFromFile(path);
+                break;
+        }
+        
         return _materialsByPath.GetValueOrDefault(path, Array.Empty<Material>());
     }
     
@@ -50,22 +69,20 @@ public static class LoadedModelsFactory
     public static async Task<Material[]> LoadMaterialsFromFolder(string folderPath)
     {
         // Start all file loading
-        var taskList = new List<Task<GameObject>>();
+        var taskList = new List<Task<Material[]>>();
         var files = Directory.GetFiles(folderPath);
         foreach (var file in files)
         {
-            var task = LoadModelFromFile(file);
+            var task = LoadMaterialsFromFile(file);
             taskList.Add(task);
         }
 
-        // Wait for them all to finish
-        foreach (var task in taskList)
-            _ = await task;
+        var result = new List<Material>();
 
-        // Materials should now be filled in, create 1 list of them all
-        return files
-            .SelectMany(x => _materialsByPath.GetValueOrDefault(x, Array.Empty<Material>()))
-            .ToArray();
+        foreach (var task in taskList)
+            result.AddRange(await task);
+
+        return result.ToArray();
     }
 
     /// Gets the models regardless whether the path is a file or directory
@@ -89,10 +106,22 @@ public static class LoadedModelsFactory
         
         // Start all file loading
         var taskList = new List<Task<GameObject>>();
+        var subTaskList = new List<Task<IList<GameObject>>>();
         foreach (var file in Directory.GetFiles(folderPath))
         {
-            var task = LoadModelFromFile(file);
-            taskList.Add(task);
+            string ext = Path.GetExtension(file);
+            switch (ext)
+            {
+                case ".zip":
+                    string extractPath = UnzipToTempPath(file);
+                    var subTask = LoadModelsFromFolder(extractPath);
+                    subTaskList.Add(subTask);
+                    break;
+                default:
+                    var task = LoadModelFromFile(file);
+                    taskList.Add(task);
+                    break;
+            }
         }
 
         // Collect all loaded gameobjects
@@ -101,6 +130,13 @@ public static class LoadedModelsFactory
         {
             var obj = await task;
             if (obj != null)
+                result.Add(obj);
+        }
+
+        foreach (var task in subTaskList)
+        {
+            var list = await task;
+            foreach (var obj in list)
                 result.Add(obj);
         }
 
@@ -144,6 +180,17 @@ public static class LoadedModelsFactory
         return result;
     }
 
+    private static string UnzipToTempPath(string zipFile)
+    {
+        string extractPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+
+        if (!Directory.Exists(extractPath))
+            Directory.CreateDirectory(extractPath);
+
+        ZipFile.ExtractToDirectory(zipFile, extractPath);
+        return extractPath;
+    }
+
     private static async Task<GLTFast.GltfAsset> LoadGltfModel(string path)
     {
         if (_host == null)
@@ -166,5 +213,13 @@ public static class LoadedModelsFactory
 
         Debug.Log("GLTF file imported successfully.");
         return component;
+    }
+
+    private static async Task<Material[]> LoadMaterialX(string path)
+    {
+        var result = await MaterialXLoader.Load(path);
+
+        Debug.Log("MLTX file imported successfully.");
+        return result;
     }
 }

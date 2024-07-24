@@ -158,7 +158,7 @@ namespace C2R
                 childObject[meshName] = new JSONObject
                 {
                     [assetName] = meshData.FileName,
-                    [nameof(meshFilter.sharedMesh)] = meshData.TreeLocation
+                    [submeshName] = meshData.TreeLocation
                 };
             }
             

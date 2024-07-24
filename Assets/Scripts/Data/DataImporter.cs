@@ -26,6 +26,7 @@ public static class ConstDataValues
     public const string dataName = "Data";
     public const string collidersName = "Colliders";
     public const string meshName = "Mesh";
+    public const string submeshName = "Submesh";
     public const string rigidBodyName = "RigidBody";
     public const string assetName = "Asset";
     public const string childrenName = "Children";
