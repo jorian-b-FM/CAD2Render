@@ -17,6 +17,7 @@ using System.Collections;
 
 public static class ConstDataValues
 {
+    public const string mainSettingsName = "__main__";
     public const string defaultSettingsName = "__defaults__";
     public const string randomizerName = "Randomizers";
     public const string materialRandomizerName = "MaterialRandomizers";
@@ -48,13 +49,14 @@ public class DataImporter : MonoBehaviour
 
     private GameObject _fakeResources;
     
-    UIDocument UIDoc;
-    Button loadButton;
+    UIDocument _UIDoc;
+    Button _loadButton;
 
     void Awake()
     {
         // Setup fake resources
         // as we need to load some resources, and we need those to be dynamic, this handles that
+        _addedResources = new List<string>();
         _createdResources = new List<Object>();
 
         _fakeResources = new GameObject("[GENERATED] Fake Resources");
@@ -81,16 +83,16 @@ public class DataImporter : MonoBehaviour
             return;
         }
         
-        UIDoc = GUI.GetComponent<UIDocument>();
-        if (!UIDoc)
+        _UIDoc = GUI.GetComponent<UIDocument>();
+        if (!_UIDoc)
         {
             Debug.LogWarning("UIDocument not found in the GUI while linking buttons");
             return;
         }
         
-        loadButton = UIDoc.rootVisualElement.Q<Button>("LoadButton");
-        loadButton.visible = true;
-        loadButton.RegisterCallback<ClickEvent>(LoadButtonClicked);
+        _loadButton = _UIDoc.rootVisualElement.Q<Button>("LoadButton");
+        _loadButton.visible = true;
+        _loadButton.RegisterCallback<ClickEvent>(LoadButtonClicked);
         
         if (!loadFromFolder) return;
         
@@ -111,55 +113,59 @@ public class DataImporter : MonoBehaviour
             }
         }
 
-        LoadFromFolder(folderPathToLoad);
+        LoadFromFile(folderPathToLoad);
     }
 
     private void LoadButtonClicked(ClickEvent evt)
     {
-        StartCoroutine(TryLoadFolder());
+        StartCoroutine(TryLoadData());
     }
 
-    private IEnumerator TryLoadFolder()
+    private IEnumerator TryLoadData()
     {
         var defaultFolder = _fullFolderPath ?? Application.dataPath;
         defaultFolder = Path.Combine(defaultFolder, "..");
+        defaultFolder = Path.GetFullPath(defaultFolder);
 
-        yield return FileBrowser.WaitForLoadDialog(FileBrowser.PickMode.Folders, false, defaultFolder, "", "Choose a folder");
+        // yield return FileBrowser.WaitForLoadDialog(FileBrowser.PickMode.Folders, false, defaultFolder, "", "Choose a folder");
+        // 
+        // if (FileBrowser.Success && FileBrowser.Result.Any())
+        //     LoadFromFolder(FileBrowser.Result.First());
+
+        FileBrowser.SetFilters(false, new FileBrowser.Filter("*.json", ".json"));
+        yield return FileBrowser.WaitForLoadDialog(FileBrowser.PickMode.Files, false, defaultFolder, "", "Choose a data file");
 
         if (FileBrowser.Success && FileBrowser.Result.Any())
-            LoadFromFolder(FileBrowser.Result.First());
+            LoadFromFile(FileBrowser.Result.First());
+
     }
 
-    private async void LoadFromFolder(string folder)
+    private async void LoadFromFile(string filePath)
     {
         // Disable self, so ensure no object activates and requires some other object that will be created later
         bool wasActive = gameObject.activeSelf;
         gameObject.SetActive(false);
         
         // Root the path, if not done so already
-        if (!Path.IsPathRooted(folder))
+        if (!Path.IsPathRooted(filePath))
         {
-            _fullFolderPath = Path.Combine(Application.dataPath, "..", folder);
-            _fullFolderPath = Path.GetFullPath(_fullFolderPath);
+            filePath = Path.Combine(Application.dataPath, "..", filePath);
+            filePath = Path.GetFullPath(filePath);
         }
-        else
-            _fullFolderPath = folder;
+        
+        _fullFolderPath = Path.GetDirectoryName(filePath);
 
-        if (!Directory.Exists(folder))
+        if (!File.Exists(filePath))
         {
-            Logger.LogError($"Path '{_fullFolderPath}' does not exist");
+            Logger.LogError($"Path '{filePath}' does not exist");
             return;
         }
         
-        Debug.Log($"Loading from '{_fullFolderPath}'");
+        Debug.Log($"Loading from '{filePath}'");
 
         var randomizer = GetComponent<MainRandomizer>();
 
-        var filePath = Path.Combine(folder, "main.json");
-        TryLoadDataSet(filePath, randomizer);
-
-        filePath = Path.Combine(folder, "randomizers.json");
-        await TryLoadRandomizerSet(filePath, randomizer);
+        await TryLoadData(filePath, randomizer);
         
         gameObject.SetActive(wasActive || gameObject.activeSelf);
         
@@ -171,39 +177,15 @@ public class DataImporter : MonoBehaviour
         foreach (var resource in _createdResources)
         {
             if (resource)
-                Object.Destroy(resource);
+                Destroy(resource);
         }
     }
 
-    private bool TryLoadDataSet(string filePath, MainRandomizer randomizer)
+    private async Task<bool> TryLoadData(string filePath, MainRandomizer randomizer)
     {
         if (!File.Exists(filePath))
         {
-            Logger.LogWarning($"Could not override dataset from '{filePath}': It does not exist");
-            return false;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(filePath);
-            // instantiate so we do not edit the asset
-            var newDataset = GetDefaultDataset(randomizer);
-            JsonUtility.FromJsonOverwrite(json, newDataset);
-            randomizer.Dataset = newDataset;
-            return true;
-        }
-        catch (Exception e)
-        {
-            Logger.LogError($"Could not override dataset from '{filePath}': {e}");
-            return false;
-        }
-    }
-
-    private async Task<bool> TryLoadRandomizerSet(string filePath, MainRandomizer randomizer)
-    {
-        if (!File.Exists(filePath))
-        {
-            Logger.LogWarning($"Could not override Randomizer set from '{filePath}': It does not exist");
+            Logger.LogWarning($"Could not override Data from '{filePath}': It does not exist");
             return false;
         }
 
@@ -219,6 +201,13 @@ public class DataImporter : MonoBehaviour
 
         JSONNode node = JSON.Parse(json);
 
+        var newDataset = GetDefaultDataset(randomizer);
+
+        if (node.TryGetValue(mainSettingsName, out var valueNode))
+            JsonUtility.FromJsonOverwrite(valueNode.ToString(), newDataset);
+
+        randomizer.Dataset = newDataset;
+
         // TODO: disable self to make any created script activate at once?
         return await TryCreateChildren(node, randomizer.transform);
     }
@@ -231,10 +220,10 @@ public class DataImporter : MonoBehaviour
             return false;
         }
 
-        // direct children (other than __defaults__) are objects
+        // direct children (other than __*__) are objects
         foreach (var child in node.Keys)
         {
-            if (child == defaultSettingsName) // other than __defaults__
+            if (child == defaultSettingsName || child == mainSettingsName) // other than __*__
                 continue;
 
             if (!await TryCreateChild(child, node[child], target))
@@ -554,6 +543,7 @@ public class DataImporter : MonoBehaviour
     private T GetDefaultDataset<T>(IDatasetUser<T> datasetUser)
         where T : ScriptableObject
         => (T) GetDefaultDataset((IDatasetUser) datasetUser);
+
     private ScriptableObject GetDefaultDataset(IDatasetUser datasetUser)
     {
         var datasetType = datasetUser.GetDataSetType();

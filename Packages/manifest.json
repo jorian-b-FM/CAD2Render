@@ -1,8 +1,8 @@
 {
   "dependencies": {
+    "ca.andydbc.unity-texture-packer": "0.0.1",
     "com.atteneder.gltfast": "6.7.0",
     "com.sneakysquirrellabs.minmaxrangeattribute": "1.0.1",
-	"ca.andydbc.unity-texture-packer": "0.0.1",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.2d.tilemap": "1.0.0",
     "com.unity.ads": "4.4.2",
@@ -12,6 +12,7 @@
     "com.unity.formats.fbx": "5.1.0",
     "com.unity.ide.rider": "3.0.31",
     "com.unity.ide.visualstudio": "2.0.22",
+    "com.unity.memoryprofiler": "1.1.0",
     "com.unity.postprocessing": "3.4.0",
     "com.unity.purchasing": "4.10.0",
     "com.unity.render-pipelines.high-definition": "17.0.2",
@@ -62,7 +63,7 @@
         "com.sneakysquirrellabs",
         "com.atteneder.gltfast",
         "com.gkngkc",
-		"ca.andydbc"
+        "ca.andydbc"
       ]
     }
   ]

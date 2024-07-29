@@ -41,27 +41,25 @@ namespace C2R
             if (!Directory.Exists(_fullFolderPath))
                 Directory.CreateDirectory(_fullFolderPath);
             
-            var mainPath = Path.Combine(_fullFolderPath, "main.json");
-            var randomizerPath = Path.Combine(_fullFolderPath, "randomizers.json");
+            var dataPath = Path.Combine(_fullFolderPath, "data.json");
 
             var randomizer = GetComponent<MainRandomizer>();
 
-            var mainJson = ToJsonNodeWithJsonUtility(randomizer.Dataset);
-            await File.WriteAllTextAsync(mainPath, mainJson.ToString(2));
-            Debug.Log($"Data exported to '{mainPath}'");
-
-            JSONNode randomizerJson = new JSONObject();
+            JSONNode json = new JSONObject();
             var defaults = new JSONObject();
+
+            json[mainSettingsName] = ToJsonNodeWithJsonUtility(randomizer.Dataset);
+
             foreach (Transform child in randomizer.transform)
             {
-                randomizerJson[child.name] = await ToJsonNode(child);
+                json[child.name] = await ToJsonNode(child);
             }
 
             var overrider = GetComponent<DataImporter>();
 
             if (overrider != null)
             {
-                randomizerJson[defaultSettingsName] = defaults;
+                json[defaultSettingsName] = defaults;
                 foreach (var o in overrider.defaultDataObjects)
                 {
                     var key = GetTypeName(o);
@@ -72,8 +70,8 @@ namespace C2R
                 }
             }
 
-            await File.WriteAllTextAsync(randomizerPath, randomizerJson.ToString(2));
-            Debug.Log($"Data exported to '{randomizerPath}'");
+            await File.WriteAllTextAsync(dataPath, json.ToString(2));
+            Debug.Log($"Data exported to '{dataPath}'");
         }
 
         private async Task<JSONNode> ToJsonNode(Transform o, MeshData meshData = default)
