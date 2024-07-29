@@ -30,6 +30,12 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface, IDatasetUs
         LineTextureGenerationShader = ResourceManager.loadShader("LineTextureGenerator");
     }
 
+    public void OnDestroy()
+    {
+        if (LineZoneTexture)
+            Destroy(LineZoneTexture);
+    }
+
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         var ColorTexture = textures.set(MaterialTextures.MapTypes.colorMap,
@@ -57,7 +63,7 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface, IDatasetUs
         if (LineZoneTexture == null || LineZoneTexture.width != resolutionX || LineZoneTexture.height != resolutionY)
         {
             if (LineZoneTexture != null)
-                LineZoneTexture.Release();
+                Destroy(LineZoneTexture);
             LineZoneTexture = new RenderTexture(resolutionX, resolutionY, 0);
             LineZoneTexture.Create();
 

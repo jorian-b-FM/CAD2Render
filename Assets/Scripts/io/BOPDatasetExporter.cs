@@ -11,7 +11,7 @@ using UnityEngine.Rendering.HighDefinition;
 using System.Linq;
 
 // https://github.com/thodan/bop_toolkit/blob/master/docs/bop_datasets_format.md
-public class BOPDatasetExporter
+public static class BOPDatasetExporter
 {
     [Serializable]
     private struct Matrix3x3Object
@@ -482,7 +482,7 @@ public class BOPDatasetExporter
         {
             if (saveLocation != null)
             {
-                saveLocation.Release();
+                UnityEngine.Object.Destroy(saveLocation);
             }
             saveLocation = new RenderTexture(width, height, 0, RenderTextureFormat.RFloat);
             saveLocation.dimension = UnityEngine.Rendering.TextureDimension.Tex2DArray;

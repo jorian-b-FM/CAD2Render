@@ -20,9 +20,9 @@ public class MaterialTextures
     ~MaterialTextures()
     {
         foreach (var texture in textures)
-            texture.Value.Release();
+            UnityEngine.Object.Destroy(texture.Value);
         if (resampleLocations != null)
-            resampleLocations.Release();
+            UnityEngine.Object.Destroy(resampleLocations);
         resampleLocations = null;
     }
 
@@ -83,24 +83,13 @@ public class MaterialTextures
             return null;
     }
 
-    [Obsolete("Textures are now reused instead of released, use UpdateLinkedRenderer instead.")]
-    internal void releaseTextures()
-    {
-        textureDisabled.Clear();
-        foreach (var texture in textures)
-            texture.Value.Release();
-        if (resampleLocations != null)
-            resampleLocations.Release();
-        resampleLocations = null;
-    }
-
     public RenderTexture getResamplelocations()
     {
         //return get(MapTypes.resampleLocationMap);
         if(resampleLocations == null || resampleLocations.width != this.resolutionX || resampleLocations.height != this.resolutionY)
         {
-            if(resampleLocations != null)
-                resampleLocations.Release();
+            if (resampleLocations != null)
+                UnityEngine.Object.Destroy(resampleLocations);
             resampleLocations = new RenderTexture(resolutionX, resolutionY, 0, UnityEngine.Experimental.Rendering.DefaultFormat.LDR);
             resampleLocations.enableRandomWrite = true;
             resampleLocations.wrapMode = TextureWrapMode.Mirror;

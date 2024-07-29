@@ -31,6 +31,12 @@ public class RustGenerationHandler : MaterialRandomizerInterface, IDatasetUser<R
         rustmapGenerationShader = ResourceManager.loadShader("rustMapGenerator");
     }
 
+    private void OnDestroy()
+    {
+        if (RustZoneTexture)
+            Destroy(RustZoneTexture);
+    }
+
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         int kernelHandle = rustmapGenerationShader.FindKernel("CSMain");
@@ -87,7 +93,7 @@ public class RustGenerationHandler : MaterialRandomizerInterface, IDatasetUser<R
         if (RustZoneTexture == null || RustZoneTexture.width != resolutionX || RustZoneTexture.height != resolutionY)
         {
             if (RustZoneTexture != null)
-                RustZoneTexture.Release();
+                Destroy(RustZoneTexture);
             RustZoneTexture = new RenderTexture(resolutionX, resolutionY, 0);
             RustZoneTexture.Create();
 

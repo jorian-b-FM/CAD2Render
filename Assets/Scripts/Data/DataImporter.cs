@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Assets.Scripts.io;
 using C2R;
-using SFB;
 using SimpleJSON;
 using Substance.Game;
 using UnityEngine;
@@ -13,6 +12,8 @@ using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 using static ConstDataValues;
 using Task = System.Threading.Tasks.Task;
+using SimpleFileBrowser;
+using System.Collections;
 
 public static class ConstDataValues
 {
@@ -43,6 +44,7 @@ public class DataImporter : MonoBehaviour
     private Dictionary<Type, ScriptableObject> _defaultObjectByType;
 
     private List<Object> _createdResources;
+    private List<string> _addedResources;
 
     private GameObject _fakeResources;
     
@@ -100,7 +102,7 @@ public class DataImporter : MonoBehaviour
             // Start i at 1 to skip 'unity.exe'
             for (int i = 1; i < args.Length; ++i)
             {
-                // if the args starts with a -, skip the next 1 as well.
+                // if the args starts with a -, skip it. We do not know if we should skip the next 1 as well, so we don't
                 if (args[i].StartsWith("-"))
                     continue;
 
@@ -114,9 +116,18 @@ public class DataImporter : MonoBehaviour
 
     private void LoadButtonClicked(ClickEvent evt)
     {
-        var paths = StandaloneFileBrowser.OpenFolderPanel("Choose a folder", "", false);
-        if (paths.Any())
-            LoadFromFolder(paths.First());
+        StartCoroutine(TryLoadFolder());
+    }
+
+    private IEnumerator TryLoadFolder()
+    {
+        var defaultFolder = _fullFolderPath ?? Application.dataPath;
+        defaultFolder = Path.Combine(defaultFolder, "..");
+
+        yield return FileBrowser.WaitForLoadDialog(FileBrowser.PickMode.Folders, false, defaultFolder, "", "Choose a folder");
+
+        if (FileBrowser.Success && FileBrowser.Result.Any())
+            LoadFromFolder(FileBrowser.Result.First());
     }
 
     private async void LoadFromFolder(string folder)
@@ -195,6 +206,10 @@ public class DataImporter : MonoBehaviour
             Logger.LogWarning($"Could not override Randomizer set from '{filePath}': It does not exist");
             return false;
         }
+
+        // Remove any added resources (to avoid conflicts) 
+        foreach (var hash in _addedResources)
+            ResourceManager.RemoveRegisteredSet(hash);
 
         // Delete the existing randomizer set
         foreach (Transform child in randomizer.transform)
@@ -337,26 +352,36 @@ public class DataImporter : MonoBehaviour
 
             var model = await LoadedModelsFactory.LoadModelFromFile(meshPath);
 
-            if (node.TryGetValue(nameof(MeshFilter.sharedMesh), out valueNode))
-            {
-                string submeshName = valueNode;
-                var subMesh = model.transform.Find(submeshName);
+            if (node.TryGetValue(submeshName, out valueNode))
+                CreateMesh(model, go.transform, meshPath, valueNode.Value);
+            else if (node.TryGetValue(nameof(MeshFilter.sharedMesh), out valueNode))
+                CreateMesh(model, go.transform, meshPath, valueNode.Value);
+            else
+                CreateMesh(model, go.transform, meshPath);
+        }
+    }
 
-                if (subMesh == null)
-                    Logger.LogError($"Could not find mesh '{submeshName}' in '{meshPath}'");
-                else
-                {
-                    var subMeshInstance = CustomInstantiate(subMesh, go.transform);
-                    SetKeypointTagIfNeeded(subMeshInstance.gameObject);
-                }
-            }
-            else // if no submesh was specified, just instantiate the whole thing
+    private static void CreateMesh(GameObject model, Transform host, string meshPath, string submeshPath = null)
+    {
+        if (string.IsNullOrEmpty(submeshPath))
+        {
+            // if no submesh was specified, just instantiate the whole thing
+            foreach (Transform child in model.transform)
             {
-                foreach (Transform child in model.transform)
-                {
-                    var childInstance = CustomInstantiate(child, go.transform);
-                    SetKeypointTagIfNeeded(childInstance.gameObject);
-                }
+                var childInstance = CustomInstantiate(child, host);
+                SetKeypointTagIfNeeded(childInstance.gameObject);
+            }
+        }
+        else
+        {
+            var subMesh = model.transform.Find(submeshPath);
+
+            if (subMesh == null)
+                Logger.LogError($"Could not find mesh '{submeshPath}' in '{meshPath}'");
+            else
+            {
+                var subMeshInstance = CustomInstantiate(subMesh, host);
+                SetKeypointTagIfNeeded(subMeshInstance.gameObject);
             }
         }
     }
@@ -551,13 +576,17 @@ public class DataImporter : MonoBehaviour
         var materials = ResourceManager.LoadAll<Material>(path);
         // If it isn't a valid resource path (no resources found). Check if there are any jsons
         if (materials.Any())
+        {
+            Logger.LogInfo($"'{path}' is a valid resources path, so if you have your own folder, it will not be used.");
             return true;
+        }
         
         string fullPath = Path.Combine(_fullFolderPath, path);
         
         materials = await LoadedModelsFactory.LoadMaterialsFromPath(fullPath);
         
-        ResourceManager.RegisterSet(path, materials);
+        var hash = ResourceManager.RegisterSet(path, materials);
+        _addedResources.Add(hash);
         return true;
     }
     
@@ -566,7 +595,10 @@ public class DataImporter : MonoBehaviour
         var objects = ResourceManager.LoadAll<GameObject>(path);
         // If it isn't a valid resource path (no resources found). Check if there are any jsons
         if (objects.Any())
+        {
+            Logger.LogInfo($"'{path}' is a valid resources path, so if you have your own folder, it will not be used.");
             return true;
+        }
         
         string fullPath = Path.Combine(_fullFolderPath, path);
 
@@ -588,7 +620,8 @@ public class DataImporter : MonoBehaviour
         }
 
         // Note: use modelsPath and not fullPath here as we want to override the result of the dataset
-        ResourceManager.RegisterSet(path, objects);
+        var hash = ResourceManager.RegisterSet(path, objects);
+        _addedResources.Add(hash);
         return true;
     }
 
@@ -597,7 +630,10 @@ public class DataImporter : MonoBehaviour
         Texture[] cubemaps = ResourceManager.LoadAll<Cubemap>(path);
         // If it isn't a valid resource path (no resources found). Check if there are any jsons
         if (cubemaps.Any())
+        {
+            Logger.LogInfo($"'{path}' is a valid resources path, so if you have your own folder, it will not be used.");
             return true;
+        }
         
         string fullPath = Path.Combine(_fullFolderPath, path);
 
@@ -618,7 +654,8 @@ public class DataImporter : MonoBehaviour
         }
 
         // Note: use environmentPath and not fullPath here as we want to override the result of the dataset
-        ResourceManager.RegisterSet(path, cubemaps, typeof(Cubemap));
+        var hash = ResourceManager.RegisterSet(path, cubemaps, typeof(Cubemap));
+        _addedResources.Add(hash);
         return true;
     }
 

@@ -31,6 +31,17 @@ public class ImageSaver
         BlackWhiteSaveTexture = new Texture2D(width, height, TextureFormat.RFloat, false);
     }
 
+    ~ImageSaver()
+    {
+        Object.Destroy(renderTexSRGB);
+        Object.Destroy(renderTexLin);
+        Object.Destroy(depthTexture);
+        Object.Destroy(arraySlice);
+
+        Object.Destroy(saveTexture);
+        Object.Destroy(BlackWhiteSaveTexture);
+    }
+
     public void SaveArray(RenderTexture renderTex, int depth, string filename, Extension outputExt, bool gammaCorrection, bool blackWhite = false)
     {
         for(int i = 0; i < depth; ++i)

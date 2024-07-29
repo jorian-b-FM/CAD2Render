@@ -88,6 +88,11 @@ namespace Assets.Scripts.newScene
             ExportDatasetInfo();
         }
 
+        ~Exporter()
+        {
+            // No need to clean up the textures, they are handled externally
+        }
+
         private void setupOutputPaths()
         {
             if (dataset.exportToBOP)

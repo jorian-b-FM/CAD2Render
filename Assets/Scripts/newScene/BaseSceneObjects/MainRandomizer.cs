@@ -90,6 +90,8 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
     private async Task<bool> LoadDataset()
     {
+        DestroyRenderTextures();
+
         _initialized = false;
         
         var success = await checkDatasetSettings();
@@ -129,6 +131,20 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
         currentFrame = -2;
         _initialized = true;
+    }
+
+    private void DestroyRenderTextures()
+    {
+        if (!_initialized)
+            return;
+
+        Destroy(renderTexture);
+        Destroy(segmentationTexture);
+        if (segmentationTextureArray)
+            Destroy(segmentationTextureArray);
+        Destroy(albedoTexture);
+        Destroy(normalTexture);
+        Destroy(depthTexture);
     }
 
     private void LoadBOP()
@@ -521,6 +537,8 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
     private void OnDestroy()
     {
+        DestroyRenderTextures();
+
         if (UIDoc)
             UIDoc.panelSettings.clearColor = false;
     }

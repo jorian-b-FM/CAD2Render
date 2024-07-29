@@ -37,17 +37,22 @@ namespace Assets.Scripts.io
 
         /// Associates a list of object with a certain path for the given type.
         /// <remarks>Overrides the list if there is already an associated list</remarks>
-        public static void RegisterSet<T>(string path, T[] list) where T: Object
+        public static string RegisterSet<T>(string path, T[] list) where T: Object
         {
             var hash = makeHashCode(path, typeof(T));
             LoadedData[hash] = list;
+            return hash;
         }
         
-        public static void RegisterSet(string path, Object[] list, Type type)
+        public static string RegisterSet(string path, Object[] list, Type type)
         {
             var hash = makeHashCode(path, type);
             LoadedData[hash] = list;
+            return hash;
         }
+
+        public static void RemoveRegisteredSet(string hash)
+            => LoadedData.Remove(hash);
 
         private static Dictionary<string, ComputeShader> loadedShaders = new Dictionary<string, ComputeShader>();
         public static ComputeShader loadShader(string shaderName)
