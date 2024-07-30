@@ -309,7 +309,8 @@ public class DataImporter : MonoBehaviour
     private static void CreateRigidBody(JSONNode node, GameObject go)
     {
         JSONNode valueNode;
-        var rb = go.AddComponent<Rigidbody>();
+        if (!go.TryGetComponent<Rigidbody>(out var rb))
+            rb = go.AddComponent<Rigidbody>();
 
         if (node.TryGetValue(nameof(rb.isKinematic), out valueNode))
             rb.isKinematic = valueNode;
