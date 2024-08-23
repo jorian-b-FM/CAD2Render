@@ -7,11 +7,8 @@ using UnityEngine;
 public class AnimationProgressRandomizeHandler : RandomizerInterface
 {
     private Animator animator;
-
-    public override ScriptableObject getDataset()
-    {
-        return null;
-    }
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Object;
 
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
@@ -25,7 +22,6 @@ public class AnimationProgressRandomizeHandler : RandomizerInterface
     // Start is called before the first frame update
     void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Object;
         animator = GetComponent<Animator>();
     }
 }

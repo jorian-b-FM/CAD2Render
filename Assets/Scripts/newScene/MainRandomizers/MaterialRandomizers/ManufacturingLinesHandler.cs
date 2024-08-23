@@ -5,12 +5,19 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/ManufacturingLines")]
-public class ManufacturingLinesHandler : MaterialRandomizerInterface
+public class ManufacturingLinesHandler : MaterialRandomizerInterface, IDatasetUser<ManufacturingLinesData>
 {
+    [SerializeField] private ManufacturingLinesData dataset;
+
+    public ManufacturingLinesData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     //private RandomNumberGenerator rng;
     private ComputeShader LineTextureGenerationShader;
     private RenderTexture LineZoneTexture;
-    public ManufacturingLinesData dataset;
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -23,9 +30,17 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface
         LineTextureGenerationShader = ResourceManager.loadShader("LineTextureGenerator");
     }
 
+    public void OnDestroy()
+    {
+        if (LineZoneTexture)
+            Destroy(LineZoneTexture);
+    }
+
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
-        var ColorTexture = textures.set(MaterialTextures.MapTypes.colorMap, textures.GetCurrentLinkedTexture("_BaseColorMap"), textures.GetCurrentLinkedColor("_Color"));
+        var ColorTexture = textures.set(MaterialTextures.MapTypes.colorMap,
+            textures.GetCurrentLinkedTexture("_BaseColorMap", "baseColorTexture"),
+            textures.GetCurrentLinkedColor("_Color", "baseColorFactor"));
         int texSizeX = ColorTexture.width;
         int texSizeY = ColorTexture.height;
         updateLineZoneTexture(texSizeX, texSizeY);
@@ -48,7 +63,7 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface
         if (LineZoneTexture == null || LineZoneTexture.width != resolutionX || LineZoneTexture.height != resolutionY)
         {
             if (LineZoneTexture != null)
-                LineZoneTexture.Release();
+                Destroy(LineZoneTexture);
             LineZoneTexture = new RenderTexture(resolutionX, resolutionY, 0);
             LineZoneTexture.Create();
 
@@ -63,10 +78,5 @@ public class ManufacturingLinesHandler : MaterialRandomizerInterface
             else
                 Graphics.Blit(dataset.LineCreationZoneTexture, LineZoneTexture);
         }
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

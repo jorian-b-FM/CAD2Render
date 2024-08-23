@@ -1,15 +1,24 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using Assets.Scripts.io;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
 
 
 [AddComponentMenu("Cad2Render/Light Randomize Handler")]
-public class LightRandomizeHandler : RandomizerInterface
+public class LightRandomizeHandler : RandomizerInterface, IDatasetUser<LightRandomizeData>
 {
-    public LightRandomizeData dataset;
+    [SerializeField] private LightRandomizeData dataset;
+
+    public LightRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -17,25 +26,22 @@ public class LightRandomizeHandler : RandomizerInterface
         RandomizerInterface.CloneDataset(ref dataset);
     }
 
-    private UnityEngine.Object[] cubeMaps;
-    private UnityEngine.Object[] projectorMaps;
+    private Texture[] cubeMaps;
+    private Texture[] projectorMaps;
 
     private List<Light> instantiatedLights;
     GameObject renderSettings = null;
 
     private int LightIndex = 0;
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Light;
 
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Light;
         this.LinkGui();
 
-        if (dataset.environmentsPath != "")
-            cubeMaps = Resources.LoadAll(dataset.environmentsPath, typeof(Cubemap));
-        else cubeMaps = new UnityEngine.Object[0];
-        if (dataset.projectorTexturePath != "")
-            projectorMaps = Resources.LoadAll(dataset.projectorTexturePath, typeof(Texture));
-        else projectorMaps = new UnityEngine.Object[0];
+        cubeMaps = TryGetResources<Texture>(dataset.environmentsPath, typeof(Cubemap));
+        projectorMaps = TryGetResources<Texture>(dataset.projectorTexturePath);
 
         if (cubeMaps.Length == 0 && dataset.environmentsPath != "")
         {
@@ -52,11 +58,23 @@ public class LightRandomizeHandler : RandomizerInterface
         instantiatedLights = new List<Light>();
     }
 
-    public override ScriptableObject getDataset()
+    protected override void OnDestroy()
     {
-        return dataset;
+        DestroyLights();
+        
+        base.OnDestroy();
     }
 
+    private static T[] TryGetResources<T>(string path, Type overrideType = null) where T: UnityEngine.Object
+    {
+        if (string.IsNullOrEmpty(path))
+            return Array.Empty<T>();
+
+        if (overrideType == null)
+            return ResourceManager.LoadAll<T>(path);
+        return ResourceManager.LoadAll(path, overrideType).OfType<T>().ToArray();
+    }
+    
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         if (dataset.environmentVariatons)
@@ -68,12 +86,7 @@ public class LightRandomizeHandler : RandomizerInterface
 
     private void RandomizeExtraLights(ref RandomNumberGenerator rng)
     {
-
-        foreach (Light lightsource in instantiatedLights)
-        {
-            Destroy(lightsource.gameObject);
-        }
-        instantiatedLights.Clear();
+        DestroyLights();
 
 
         for (int i = 0; i < dataset.numLightsources; ++i)
@@ -100,7 +113,19 @@ public class LightRandomizeHandler : RandomizerInterface
                 lightSource.color = Color.HSVToRGB(rng.Next(), s, 1.0f);
             }
         }
+    }
 
+    private void DestroyLights()
+    {
+        if (instantiatedLights == null)
+            return;
+        
+        foreach (Light lightsource in instantiatedLights)
+        {
+            Destroy(lightsource.gameObject);
+        }
+
+        instantiatedLights.Clear();
     }
 
     private void RandomizeEnvironment(ref RandomNumberGenerator rng)
@@ -117,17 +142,17 @@ public class LightRandomizeHandler : RandomizerInterface
         // change texture on cube
         if (cubeMaps.Length > 0)
         {
-            Cubemap texture;
+            Texture texture;
             if (!dataset.pickRandomEnvironment)
             {
-                texture = (Cubemap)cubeMaps[this.LightIndex];
+                texture = cubeMaps[this.LightIndex];
                 this.LightIndex = (this.LightIndex + 1) % cubeMaps.Length;
             }
             else
-                texture = (Cubemap)cubeMaps[rng.IntRange(0, cubeMaps.Length)];
+                texture = cubeMaps[rng.IntRange(0, cubeMaps.Length)];
 
 
-            sky.hdriSky.value = texture;
+            sky.hdriSky.Override(texture);
         }
 
 

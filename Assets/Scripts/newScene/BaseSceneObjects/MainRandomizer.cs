@@ -8,22 +8,28 @@ using UnityEngine.Rendering;
 using System.IO;
 
 using System;
-using UnityEditor.UIElements;
-using UnityEditor;
 using Assets.Scripts.newScene;
 using UnityEngine.UIElements;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using UnityEngine.SceneManagement;
 
 //using UnityEngine.Profiling;
 
 
 [AddComponentMenu("Cad2Render/Main Randomizer")]
-public class MainRandomizer : MonoBehaviour
+public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 {
     [Header("Dataset")]
     [Tooltip("DatasetInformation containing settings for data generation.")]
-    public MainRandomizerData dataset;
+    [SerializeField] private MainRandomizerData dataset;
+
+    public MainRandomizerData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -38,9 +44,7 @@ public class MainRandomizer : MonoBehaviour
     private RenderTexture albedoTexture = null;
     private RenderTexture normalTexture = null;
     private RenderTexture depthTexture = null;
-    
-    
-    
+
 
     private Camera _mainCamera;
     private Camera mainCamera { get { if (_mainCamera == null) _mainCamera = Camera.main; return _mainCamera; } }
@@ -56,67 +60,115 @@ public class MainRandomizer : MonoBehaviour
 
     private int currentFrame = -2;
     bool capturing = false;
+    private bool _initialized;
 
-    static public GameObject renderSettings { get; private set; }
-    static public GameObject raytracingSettings { get; private set; }
-    static public GameObject postProcesingSettings { get; private set; }
+    private static GameObject renderSettings { get; set; }
+    private static GameObject raytracingSettings { get; set; }
+    private static GameObject postProcesingSettings { get; set; }
 
     // Start is called before the first frame update
-    void Start()
+    async void Start()
     {
-
-        if (!checkDatasetSettings())
-        {
-            UnityEditor.EditorApplication.isPlaying = false;
-            Application.Quit();
-            return;
-        }
-
-        if (dataset.BOPInputPath != "")
-        {
-            var dirInfo = new DirectoryInfo(dataset.BOPInputPath);
-            if (Regex.IsMatch(dirInfo.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]"))
-                bopSceneDirectorys.Add(dirInfo.FullName + '/');
-            else
-            {
-                foreach (DirectoryInfo subDirectory in dirInfo.GetDirectories())
-                {
-                    if (Regex.IsMatch(subDirectory.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]"))
-                        bopSceneDirectorys.Add(subDirectory.FullName + '/');
-
-                    else if (Regex.IsMatch(subDirectory.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9]"))
-                        bopSceneDirectorys.Add(subDirectory.FullName + '/');
-                }
-            }
-            loadNextBopScene();
-            if (dataset.numberOfImages < 0)
-                dataset.numberOfImages = bopScene.poses.Count;
-            bopSceneIterator = new BOPDatasetExporter.SceneIterator(bopScene);
-        }
-
         var temp = GameObject.FindGameObjectWithTag("EnvironmentSettings");
         if (temp != null)
         {
-            renderSettings = (GameObject)temp.transform.Find("Rendering Settings")?.gameObject;
+            renderSettings = temp.transform.Find("Rendering Settings")?.gameObject;
             raytracingSettings = temp.transform.Find("Ray Tracing Settings")?.gameObject;
             postProcesingSettings = temp.transform.Find("PostProcessing")?.gameObject;
         }
+        
+        var success = await LoadDataset();
+        if (!success)
+        {
+            C2R.Utility.Quit();
+            return;
+        }
+        
+        setupGui();
+        _initialized = true;
+    }
+
+    private async Task<bool> LoadDataset()
+    {
+        DestroyRenderTextures();
+
+        _initialized = false;
+        
+        var success = await checkDatasetSettings();
+        if (!success)
+            return false;
+        
+        if (dataset.BOPInputPath != "")
+            LoadBOP();
+
         setRenderprofiles();
 
         Exposure exp = null;
-        postProcesingSettings.GetComponent<Volume>().profile.TryGet<Exposure>(out exp);
-        if (exp != null)
+        if (postProcesingSettings && postProcesingSettings.GetComponent<Volume>().profile.TryGet<Exposure>(out exp))
             exp.active = dataset.autoCameraExposure;
         else
             Debug.LogWarning("exposure component not found.");
-
 
         exportHandler = new Exporter(dataset, this.gameObject);
         setupRenderTextures();
         BOPDatasetExporter.setNrOfRaytracingSamples(dataset.numRenderFrames);
         BOPDatasetExporter.setDepthScale(dataset.maxDepthDistance);
 
-        setupGui();
+        // GUI
+        UpdateVisualImages();
+
+        return true;
+    }
+
+    public async void ReloadDataset()
+    {
+        bool success = await LoadDataset();
+        if (!success)
+        {
+            C2R.Utility.Quit();
+            return;
+        }
+
+        currentFrame = -2;
+        _initialized = true;
+    }
+
+    private void DestroyRenderTextures()
+    {
+        if (!_initialized)
+            return;
+
+        Destroy(renderTexture);
+        Destroy(segmentationTexture);
+        if (segmentationTextureArray)
+            Destroy(segmentationTextureArray);
+        Destroy(albedoTexture);
+        Destroy(normalTexture);
+        Destroy(depthTexture);
+    }
+
+    private void LoadBOP()
+    {
+        var dirInfo = new DirectoryInfo(dataset.BOPInputPath);
+        if (Regex.IsMatch(dirInfo.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]"))
+        {
+            bopSceneDirectorys.Add(dirInfo.FullName + '/');
+        }
+        else
+        {
+            foreach (DirectoryInfo subDirectory in dirInfo.GetDirectories())
+            {
+                if (Regex.IsMatch(subDirectory.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]"))
+                    bopSceneDirectorys.Add(subDirectory.FullName + '/');
+
+                else if (Regex.IsMatch(subDirectory.Name, @"[0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9]"))
+                    bopSceneDirectorys.Add(subDirectory.FullName + '/');
+            }
+        }
+        loadNextBopScene();
+        if (dataset.numberOfImages < 0)
+            dataset.numberOfImages = bopScene.poses.Count;
+        bopSceneIterator = new BOPDatasetExporter.SceneIterator(bopScene);
     }
 
     private bool loadNextBopScene()
@@ -142,40 +194,65 @@ public class MainRandomizer : MonoBehaviour
         return true;
     }
 
-    private bool checkDatasetSettings()
+    private async Task<bool> checkDatasetSettings()
     {
         if (dataset == null)
         {
-            Debug.LogError("No dataset selected. Please select a folder of the Resources directory.");
+            Logger.LogError("No dataset selected. Please select a folder of the Resources directory.");
             return false;
         }
 
         if(string.IsNullOrEmpty(dataset.outputPath))
         {
-            Debug.LogError("Output path for generated data not specified");
+            Logger.LogError("Output path for generated data not specified");
             return false;
         }
         if (dataset.outputPath[dataset.outputPath.Length-1] != '/' && dataset.outputPath[dataset.outputPath.Length-1] != '\\')
             dataset.outputPath += "/";
+            
+        // If there's an active dialog, wait for it to resolve, it might already be asking to create the directory    
+        while (Dialog.HasActiveDialog)
+        {
+            await Task.Delay(50);
+        }
 
         if (!Directory.Exists(dataset.outputPath))
         {
-            if (!string.IsNullOrEmpty(dataset.outputPath) && EditorUtility.DisplayDialog("output path", "The output directory does not exists, do you want to create it?\nOutput path: " + Path.GetFullPath(dataset.outputPath), "Create directory", "Terminate program"))
+            if (!string.IsNullOrEmpty(dataset.outputPath))
             {
-                try
+                var dialog = Dialog.Show("output path",
+                    "The output directory does not exists, do you want to create it?\nOutput path: " +
+                    Path.GetFullPath(dataset.outputPath),
+                    new DialogButtonData
+                    {
+                        Text = "Create directory",
+                        Action = x =>
+                        {
+                            try
+                            {
+                                Directory.CreateDirectory(dataset.outputPath);
+                                x.Close();
+                            }
+                            catch (Exception e)
+                            {
+                                Logger.LogError("Output directory creation failed. " + e.Message);
+                                x.QuitApplication();
+                            }
+                        }
+                    }, new DialogButtonData
+                    {
+                        Text = "Terminate program",
+                        Action = x =>
+                        {
+                            Logger.LogError("Output path for generated data not specified or does not exist");
+                            x.QuitApplication();
+                        }
+                    });
+
+                while (dialog.IsActive)
                 {
-                    Directory.CreateDirectory(dataset.outputPath);
+                    await Task.Delay(50);
                 }
-                catch (Exception e)
-                {
-                    Debug.LogError("Output directory creation failed. " + e.Message);
-                    return false;
-                }
-            }
-            else
-            {
-                Debug.LogError("Output path for generated data not specified or does not exist");
-                return false;
             }
         }
 
@@ -192,6 +269,9 @@ public class MainRandomizer : MonoBehaviour
 
     void Update()
     {
+        if (!_initialized)
+            return;
+        
         if (currentFrame == -2)
         {
             currentFrame = 0;
@@ -236,7 +316,6 @@ public class MainRandomizer : MonoBehaviour
             mainCamera.enabled = true;
             currentFrame = -1;
         }
-
     }
 
     public List<GameObject> getExportObjects()
@@ -276,17 +355,17 @@ public class MainRandomizer : MonoBehaviour
         setupFalseColorStack();
     }
 
-
     public void setRenderprofiles()
     {
+        // Set sharedProfile NOT profile. Profile makes us override the asset later on
         if (renderSettings != null && dataset.renderProfile != null)
-            renderSettings.GetComponent<Volume>().profile = dataset.renderProfile;
+            renderSettings.GetComponent<Volume>().sharedProfile = dataset.renderProfile;
 
         if (raytracingSettings != null && dataset.rayTracingProfile != null)
-            raytracingSettings.GetComponent<Volume>().profile = dataset.rayTracingProfile;
+            raytracingSettings.GetComponent<Volume>().sharedProfile = dataset.rayTracingProfile;
 
         if (postProcesingSettings != null && dataset.postProcesingProfile != null)
-            postProcesingSettings.GetComponent<Volume>().profile = dataset.postProcesingProfile;
+            postProcesingSettings.GetComponent<Volume>().sharedProfile = dataset.postProcesingProfile;
     }
 
     private void setupFalseColorStack()
@@ -324,16 +403,14 @@ public class MainRandomizer : MonoBehaviour
 
     private void setupRenderTextures()
     {
-        renderTexture =       new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
-        segmentationTexture = new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
-        albedoTexture =       new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
-        normalTexture =       new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
-        depthTexture =        new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
+        InitRenderTexture(ref renderTexture, dataset);
+        InitRenderTexture(ref segmentationTexture, dataset);
+        InitRenderTexture(ref albedoTexture, dataset);
+        InitRenderTexture(ref normalTexture, dataset);
+        InitRenderTexture(ref depthTexture, dataset);
 
         if (mainCamera != null)
-        {
             mainCamera.targetTexture = renderTexture;
-        }
 
         var customPasses = GameObject.FindGameObjectWithTag("CustomPass");
         if (customPasses != null)
@@ -375,21 +452,30 @@ public class MainRandomizer : MonoBehaviour
         }
         else Debug.LogWarning("Custom pass object not found.");
 
-        if (exportHandler != null)
+        if (exportHandler == null)
         {
-            exportHandler.renderTexture = renderTexture;
-            exportHandler.segmentationTexture = segmentationTexture;
-            exportHandler.albedoTexture = albedoTexture;
-            exportHandler.normalTexture = normalTexture;
-            exportHandler.depthTexture = depthTexture;
+            Debug.LogError("CExport handler not found");
+            return;
         }
-        else Debug.LogError("CExport handler not found");
+        exportHandler.renderTexture = renderTexture;
+        exportHandler.segmentationTexture = segmentationTexture;
+        exportHandler.albedoTexture = albedoTexture;
+        exportHandler.normalTexture = normalTexture;
+        exportHandler.depthTexture = depthTexture;
+    }
+
+    private void InitRenderTexture(ref RenderTexture rt, MainRandomizerData dataset)
+    {
+        if (rt != null)
+            Destroy(rt);
+        rt = new RenderTexture(dataset.resolution.x, dataset.resolution.y, 24);
     }
 
 
     UIDocument UIDoc;
     Button recordButton;
     Label imageCounterLabel;
+
     private void setupGui()
     {
         var GUI = GameObject.FindGameObjectWithTag("GUI");
@@ -405,18 +491,7 @@ public class MainRandomizer : MonoBehaviour
             return;
         }
         UIDoc.panelSettings.clearColor = true;
-        var item = new Image();
-        item.image = renderTexture;
-        //item.image = depthTexture;
-        UIDoc.rootVisualElement.Q<VisualElement>("RenderDisplay").Add(item);
-
-        item = new Image();
-        item.image = segmentationTexture;
-        UIDoc.rootVisualElement.Q<VisualElement>("SegmentationDisplay").Add(item);
-
-        item = new Image();
-        item.image = depthTexture;
-        UIDoc.rootVisualElement.Q<VisualElement>("DepthDisplay").Add(item);
+        UpdateVisualImages();
 
         recordButton = UIDoc.rootVisualElement.Q<Button>("RecordButton");
         recordButton.RegisterCallback<ClickEvent>(ev => recordButtonClicked());
@@ -429,9 +504,43 @@ public class MainRandomizer : MonoBehaviour
         UIDoc.rootVisualElement.Q<Button>("RandomizeAll").RegisterCallback<ClickEvent>(ev => Randomize());
     }
 
+    private Image renderDisplayImage;
+    private Image segmentationDisplayImage;
+    private Image depthDisplayImage;
+    private void UpdateVisualImages()
+    {
+        // Will happen at a later point
+        if (UIDoc == null)
+            return;
+        
+        if (renderDisplayImage == null)
+        {
+            renderDisplayImage = new Image();
+            UIDoc.rootVisualElement.Q<VisualElement>("RenderDisplay").Add(renderDisplayImage);
+        }
+        renderDisplayImage.image = renderTexture;
+
+        if (segmentationDisplayImage == null)
+        {
+            segmentationDisplayImage = new Image();
+            UIDoc.rootVisualElement.Q<VisualElement>("SegmentationDisplay").Add(segmentationDisplayImage);
+        }
+        segmentationDisplayImage.image = segmentationTexture;
+
+        if (depthDisplayImage == null)
+        {
+            depthDisplayImage = new Image();
+            UIDoc.rootVisualElement.Q<VisualElement>("DepthDisplay").Add(depthDisplayImage);
+        }
+        depthDisplayImage.image = depthTexture;
+    }
+
     private void OnDestroy()
     {
-        UIDoc.panelSettings.clearColor = false;
+        DestroyRenderTextures();
+
+        if (UIDoc)
+            UIDoc.panelSettings.clearColor = false;
     }
 
     public void recordButtonClicked()

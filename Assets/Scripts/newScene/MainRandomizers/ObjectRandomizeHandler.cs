@@ -8,9 +8,16 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 [AddComponentMenu("Cad2Render/Object Randomize Handler")]
 [RequireComponent(typeof(Collider))]
-public class ObjectRandomizeHandler : RandomizerInterface
+public class ObjectRandomizeHandler : RandomizerInterface, IDatasetUser<ObjectRandomizeData>
 {
-    public ObjectRandomizeData objectData;
+    [SerializeField] private ObjectRandomizeData objectData;
+
+    public ObjectRandomizeData Dataset
+    {
+        get => objectData;
+        set => objectData = value;
+    }
+
     [InspectorButton("TriggerCloneClicked1")]
     public bool cloneObjectDataset;
     private void TriggerCloneClicked1()
@@ -27,10 +34,11 @@ public class ObjectRandomizeHandler : RandomizerInterface
     private List<GameObject> instantiatedModels = new List<GameObject>();
     private List<GameObject> instantiatedSubModels = new List<GameObject>();
     private MaterialRandomizeHandler materialRandomizeHandler;
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Object;
 
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Object;
         LinkGui();
 
         models = ResourceManager.LoadAll<GameObject>(objectData.modelsPath);
@@ -62,9 +70,11 @@ public class ObjectRandomizeHandler : RandomizerInterface
         }
     }
 
-    public override ScriptableObject getDataset()
+    protected override void OnDestroy()
     {
-        return objectData;
+        DestroyModels();
+        
+        base.OnDestroy();
     }
 
     public override void Randomize(ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)

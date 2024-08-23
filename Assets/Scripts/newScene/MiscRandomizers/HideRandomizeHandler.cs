@@ -7,10 +7,10 @@ using UnityEngine.Rendering.HighDefinition;
 
 public class HideRandomizeHandler : RandomizerInterface
 {
-    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Object;
+
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Object;
         //this.LinkGui("ObjectRandomizerList");
     }
     public float hideChance = 0.5f;
@@ -20,10 +20,4 @@ public class HideRandomizeHandler : RandomizerInterface
         this.gameObject.SetActive(rng.Next() > hideChance);
         resetFrameAccumulation();
     }
-
-    public override ScriptableObject getDataset()
-    {
-        return null;
-    }
-
 }

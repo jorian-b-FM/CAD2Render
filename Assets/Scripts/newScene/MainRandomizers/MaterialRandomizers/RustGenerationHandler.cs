@@ -5,10 +5,16 @@ using ResourceManager = Assets.Scripts.io.ResourceManager;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Rust generation")]
-public class RustGenerationHandler : MaterialRandomizerInterface
+public class RustGenerationHandler : MaterialRandomizerInterface, IDatasetUser<RustGenerationData>
 {
-    //private RandomNumberGenerator rng;
-    public RustGenerationData dataset;
+    [SerializeField] private RustGenerationData dataset;
+
+    public RustGenerationData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
 
@@ -25,23 +31,32 @@ public class RustGenerationHandler : MaterialRandomizerInterface
         rustmapGenerationShader = ResourceManager.loadShader("rustMapGenerator");
     }
 
+    private void OnDestroy()
+    {
+        if (RustZoneTexture)
+            Destroy(RustZoneTexture);
+    }
+
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
         int kernelHandle = rustmapGenerationShader.FindKernel("CSMain");
         rustmapGenerationShader.SetInt("randSeed", rng.IntRange(128, Int32.MaxValue));
         rustmapGenerationShader.SetInt("applyRust", 1);
 
-        textures.set(MaterialTextures.MapTypes.maskMap, textures.GetCurrentLinkedTexture("_MaskMap"), new Color(textures.GetCurrentLinkedFloat("_Metallic"), 1, 0,
-                                                                                                                   textures.GetCurrentLinkedFloat("_Smoothness")));
+        textures.set(MaterialTextures.MapTypes.maskMap,
+            textures.GetCurrentLinkedTexture("_MaskMap"),
+            new Color(textures.GetCurrentLinkedFloat("_Metallic", "metallicFactor"), 1, 0, textures.GetCurrentLinkedFloat("_Smoothness", "roughnessFactor")));
         rustmapGenerationShader.SetTexture(kernelHandle, "MaskMapInOut", textures.get(MaterialTextures.MapTypes.maskMap));
 
-        textures.set(MaterialTextures.MapTypes.colorMap, textures.GetCurrentLinkedTexture("_BaseColorMap"), textures.GetCurrentLinkedColor("_Color"));
+        textures.set(MaterialTextures.MapTypes.colorMap,
+            textures.GetCurrentLinkedTexture("_BaseColorMap", "baseColorTexture"),
+            textures.GetCurrentLinkedColor("_Color", "baseColorFactor"));
         rustmapGenerationShader.SetTexture(kernelHandle, "ColorMapInOut", textures.get(MaterialTextures.MapTypes.colorMap));
 
         textures.set(MaterialTextures.MapTypes.defectMap, textures.get(MaterialTextures.MapTypes.defectMap), textures.falseColor.falseColor);
         rustmapGenerationShader.SetTexture(kernelHandle, "DefectMapInOut", textures.get(MaterialTextures.MapTypes.defectMap));
 
-        var normalMap = textures.GetCurrentLinkedTexture("_NormalMap");
+        var normalMap = textures.GetCurrentLinkedTexture("_NormalMap", "normalTexture");
         textures.set(MaterialTextures.MapTypes.normalMap, normalMap, new Color(0.5f, 0.5f, 1.0f));
         rustmapGenerationShader.SetTexture(kernelHandle, "NormalMapInOut", textures.get(MaterialTextures.MapTypes.normalMap));
         if (normalMap != null)
@@ -78,7 +93,7 @@ public class RustGenerationHandler : MaterialRandomizerInterface
         if (RustZoneTexture == null || RustZoneTexture.width != resolutionX || RustZoneTexture.height != resolutionY)
         {
             if (RustZoneTexture != null)
-                RustZoneTexture.Release();
+                Destroy(RustZoneTexture);
             RustZoneTexture = new RenderTexture(resolutionX, resolutionY, 0);
             RustZoneTexture.Create();
 
@@ -93,10 +108,5 @@ public class RustGenerationHandler : MaterialRandomizerInterface
             else
                 Graphics.Blit(dataset.RustCreationZoneTexture, RustZoneTexture);
         }
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

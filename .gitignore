@@ -84,3 +84,9 @@ Assets/PlanetaGameLabo/UnityGitVersion/Resources/PlanetaGameLabo/UnityGitVersion
 Assets/PlanetaGameLabo/UnityGitVersion/Resources/PlanetaGameLabo/UnityGitVersion/Version.asset.meta
 
 Assets/CustomPass/other/depthMaterial.mat
+.idea
+renderings
+out_*.log
+Packages/packages-lock.json
+ExampleData
+.history

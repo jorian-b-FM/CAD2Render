@@ -7,9 +7,16 @@ using UnityEngine.Rendering.HighDefinition;
 
 
 [AddComponentMenu("Cad2Render/View Randomize Handler")]
-public class ViewRandomizeHandler : RandomizerInterface
+public class ViewRandomizeHandler : RandomizerInterface, IDatasetUser<ViewRandomizeData>
 {
-    public ViewRandomizeData dataset;
+    [SerializeField] private ViewRandomizeData dataset;
+
+    public ViewRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -31,9 +38,11 @@ public class ViewRandomizeHandler : RandomizerInterface
         }
     }
     private Matrix4x4 cameraMatrix;
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.View;
+
     public void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.View;
         this.LinkGui();
         up = new Vector3(0.0f, 1.0f, 0.0f);
         mainCamera.gateFit = Camera.GateFitMode.None;
@@ -107,10 +116,4 @@ public class ViewRandomizeHandler : RandomizerInterface
         }
         resetFrameAccumulation();
     }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
-    }
-
 }

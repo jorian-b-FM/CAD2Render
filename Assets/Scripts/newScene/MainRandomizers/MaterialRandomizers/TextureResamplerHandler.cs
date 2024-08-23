@@ -3,11 +3,18 @@ using UnityEngine;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Texture Resampler")]
-public class TextureResamplerHandler : MaterialRandomizerInterface
+public class TextureResamplerHandler : MaterialRandomizerInterface, IDatasetUser<TextureResamplerData>
 {
+    [SerializeField] private TextureResamplerData dataset;
+
+    public TextureResamplerData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     //private RandomNumberGenerator rng;
     private TextureResampler texResampler;
-    public TextureResamplerData dataset;
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -32,10 +39,5 @@ public class TextureResamplerHandler : MaterialRandomizerInterface
             first = false;
             textures.linkTexture(type);
         }
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

@@ -3,10 +3,16 @@ using UnityEngine;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/HSV Offset")]
-public class HSVOffsetHandler : MaterialRandomizerInterface
+public class HSVOffsetHandler : MaterialRandomizerInterface, IDatasetUser<HSVOffsetData>
 {
-    //private RandomNumberGenerator rng;
-    public HSVOffsetData dataset;
+    [SerializeField] private HSVOffsetData dataset;
+
+    public HSVOffsetData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private void TriggerCloneClicked()
@@ -16,7 +22,7 @@ public class HSVOffsetHandler : MaterialRandomizerInterface
 
     public override void RandomizeSingleMaterial(MaterialTextures textures, ref RandomNumberGenerator rng, BOPDatasetExporter.SceneIterator bopSceneIterator = null)
     {
-        Color color = textures.GetCurrentLinkedColor("_Color");
+        Color color = textures.GetCurrentLinkedColor("_Color", "baseColorFactor");
 
         // generate a random color based on min and max hsv values
         float H, S, V;
@@ -41,10 +47,5 @@ public class HSVOffsetHandler : MaterialRandomizerInterface
         textures.newProperties.SetColor("_Color", randomColor);
         textures.newProperties.SetColor("_PaintColor", randomColor);
         textures.newProperties.SetColor("_BaseColor", randomColor);//lit shader (recomended)
-    }
-
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }

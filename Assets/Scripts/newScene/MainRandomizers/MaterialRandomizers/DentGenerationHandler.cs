@@ -31,11 +31,13 @@ public class DentGenerationHandler : MaterialRandomizerInterface
         int kernelHandle = DentedNormalGenerationShader.FindKernel("CSMain");
         DentedNormalGenerationShader.SetInt("randSeed", rng.IntRange(128, Int32.MaxValue));
 
-        var normalMap = textures.GetCurrentLinkedTexture("_NormalMap");
+        var normalMap = textures.GetCurrentLinkedTexture("_NormalMap", "normalTexture");
         textures.set(MaterialTextures.MapTypes.normalMap, normalMap, new Color((float)Math.Sqrt(0.5), 0.5f, (float)Math.Sqrt(0.5), 0.5f));
         DentedNormalGenerationShader.SetTexture(kernelHandle, "NormalMapInOut", textures.get(MaterialTextures.MapTypes.normalMap));
 
-        textures.set(MaterialTextures.MapTypes.colorMap, textures.GetCurrentLinkedTexture("_BaseColorMap"), textures.GetCurrentLinkedColor("_Color"));
+        textures.set(MaterialTextures.MapTypes.colorMap,
+            textures.GetCurrentLinkedTexture("_BaseColorMap", "baseColorTexture"),
+            textures.GetCurrentLinkedColor("_Color", "baseColorFactor"));
         DentedNormalGenerationShader.SetTexture(kernelHandle, "ColorMapInOut", textures.get(MaterialTextures.MapTypes.colorMap));
 
         DentedNormalGenerationShader.SetInt("useNormalMapInput", 1);

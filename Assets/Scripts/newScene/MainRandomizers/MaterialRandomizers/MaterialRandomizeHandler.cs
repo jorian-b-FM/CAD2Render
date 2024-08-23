@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,14 +6,22 @@ using UnityEngine;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Main Material Randomizer", 1)]
-public class MaterialRandomizeHandler : RandomizerInterface
+public class MaterialRandomizeHandler : RandomizerInterface, IDatasetUser<MaterialRandomizeData>
 {
     private List<MaterialTextures> materialTextureTable = new List<MaterialTextures>();
     private List<GameObject> subjectInstances;
-    public MaterialRandomizeData dataset;
+    [SerializeField] private MaterialRandomizeData dataset;
+
+    public MaterialRandomizeData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
     private MaterialRandomizerInterface[] linkedMaterialRandomizers;
+
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.Material;
 
     private void TriggerCloneClicked()
     {
@@ -20,14 +29,13 @@ public class MaterialRandomizeHandler : RandomizerInterface
     }
     public void Awake()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.Material;
         LinkGui();
-        linkedMaterialRandomizers = GetComponentsInChildren<MaterialRandomizerInterface>().OrderByDescending(o => o.getPriority()).ToArray();
+        linkedMaterialRandomizers = GetLinkedInterfaces();
     }
-
+    
     public void initialize(ref List<GameObject> instantiatedModels)
     {
-        if(instantiatedModels != null)
+        if (instantiatedModels != null)
             subjectInstances = instantiatedModels;
         else
         {
@@ -59,7 +67,7 @@ public class MaterialRandomizeHandler : RandomizerInterface
                         randomizer.RandomizeSingleInstance(instance, ref rng, bopSceneIterator);
 
             //Run all RandomizeSingleInstance functions that are directly linked to the instance
-            foreach (MaterialRandomizerInterface randomizer in instance.GetComponentsInChildren<MaterialRandomizerInterface>().OrderByDescending(o => o.getPriority()))
+            foreach (MaterialRandomizerInterface randomizer in instance.GetComponentsInChildren<MaterialRandomizerInterface>().OrderByDescending(o => o.GetPriority()))
                 if (randomizer.isActiveAndEnabled)
                     randomizer.RandomizeSingleInstance(randomizer.gameObject, ref rng, bopSceneIterator);
 
@@ -80,7 +88,7 @@ public class MaterialRandomizeHandler : RandomizerInterface
                                 randomizer.RandomizeSingleMaterial(materialTextureTable[index], ref rng, bopSceneIterator);
 
                     //Run all RandomizeSingleMaterial functions that are directly linked to the instance (starting from each renderer component find all MaterialRandomizerInterface linked to the renderer or one of its (grand)parents)
-                    foreach (MaterialRandomizerInterface randomizer in rend.gameObject.GetComponentsInParent<MaterialRandomizerInterface>().OrderByDescending(o => o.getPriority()))
+                    foreach (MaterialRandomizerInterface randomizer in rend.gameObject.GetComponentsInParent<MaterialRandomizerInterface>().OrderByDescending(o => o.GetPriority()))
                         if (randomizer.isActiveAndEnabled)
                             randomizer.RandomizeSingleMaterial(materialTextureTable[index], ref rng, bopSceneIterator);
 
@@ -92,12 +100,14 @@ public class MaterialRandomizeHandler : RandomizerInterface
         }
         resetFrameAccumulation();
     }
-
-    public override ScriptableObject getDataset()
+    
+    public MaterialRandomizerInterface[] GetLinkedInterfaces()
     {
-        return dataset;
+        return GetComponentsInChildren<MaterialRandomizerInterface>()
+            .OrderByDescending(o => o.GetPriority())
+            .ToArray();
     }
-
+    
     [System.Obsolete]
     public override List<GameObject> getExportObjects()
     {
@@ -106,4 +116,5 @@ public class MaterialRandomizeHandler : RandomizerInterface
         else
             return new List<GameObject>();
     }
+
 }

@@ -3,11 +3,21 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class SwitchSceneHandler : RandomizerInterface
+public class SwitchSceneHandler : RandomizerInterface, IDatasetUser<SwitchSceneData>
 {
-    public SwitchSceneData dataset;
+    [SerializeField] private SwitchSceneData dataset;
+
+    public SwitchSceneData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     [InspectorButton("TriggerCloneClicked")]
     public bool clone;
+    
+    public override MainRandomizerData.RandomizerTypes randomizerType => MainRandomizerData.RandomizerTypes.View;
+
     private void TriggerCloneClicked()
     {
         RandomizerInterface.CloneDataset(ref dataset);
@@ -17,14 +27,10 @@ public class SwitchSceneHandler : RandomizerInterface
     {
         SceneManager.LoadSceneAsync(dataset.scenePath);//make sure it is not a child of the main randomizer
     }
+    
     private void Start()
     {
-        randomizerType = MainRandomizerData.RandomizerTypes.View;
-        if(dataset != null && dataset.scenePath != "")
+        if (dataset != null && dataset.scenePath != "")
             this.LinkGui();
-    }
-    public override ScriptableObject getDataset()
-    {
-        return dataset;
     }
 }
