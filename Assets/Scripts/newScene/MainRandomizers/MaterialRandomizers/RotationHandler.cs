@@ -3,9 +3,16 @@ using UnityEngine;
 
 
 [AddComponentMenu("Cad2Render/MaterialRandomizers/Rotation")]
-public class RotationHandler : MaterialRandomizerInterface
+public class RotationHandler : MaterialRandomizerInterface, IDatasetUser<RotationData>
 {
     Quaternion previousRotation;
+    
+    public RotationData Dataset
+    {
+        get => dataset;
+        set => dataset = value;
+    }
+    
     private void Start()
     {
         previousRotation = Quaternion.Euler(0, 0, 0);
