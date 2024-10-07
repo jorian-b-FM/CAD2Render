@@ -416,11 +416,17 @@ public class DataImporter : MonoBehaviour
         switch (typeNode.Value)
         {
             case nameof(MeshCollider):
-                var meshCollider = go.AddComponent<MeshCollider>();
 
-                var filter = go.GetComponentInChildren<MeshFilter>();
-                meshCollider.sharedMesh = filter.sharedMesh;
-                meshCollider.convex = true;
+                foreach (var filter in go.GetComponentsInChildren<MeshFilter>())
+                {
+                    // get or add
+                    if (!filter.TryGetComponent(out MeshCollider meshCollider))
+                        meshCollider = filter.gameObject.AddComponent<MeshCollider>();
+                    
+                    meshCollider.sharedMesh = filter.sharedMesh;
+                    meshCollider.convex = true;
+                }
+                
                 break;
             
             case nameof(BoxCollider):
