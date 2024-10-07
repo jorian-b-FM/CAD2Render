@@ -142,6 +142,10 @@ public class DataImporter : MonoBehaviour
 
     private async void LoadFromFile(string filePath)
     {
+        // Kill all existing resources, to ensure no overlap
+        foreach (Transform resource in _fakeResources.transform)
+            DestroyImmediate(resource.gameObject);
+        
         // Disable self, so ensure no object activates and requires some other object that will be created later
         bool wasActive = gameObject.activeSelf;
         gameObject.SetActive(false);
@@ -158,6 +162,7 @@ public class DataImporter : MonoBehaviour
         if (!File.Exists(filePath))
         {
             Logger.LogError($"Path '{filePath}' does not exist");
+            gameObject.SetActive(wasActive);
             return;
         }
         
@@ -607,7 +612,8 @@ public class DataImporter : MonoBehaviour
             var json = await File.ReadAllTextAsync(jsonPath);
             var objectNode = JSON.Parse(json);
 
-            objects[i] = await TryCreateChild(childName, objectNode, _fakeResources.transform);
+            // Add a guid to ensure uniqueness.
+            objects[i] = await TryCreateChild(childName + $"_{Guid.NewGuid()}", objectNode, _fakeResources.transform);
         }
 
         // Note: use modelsPath and not fullPath here as we want to override the result of the dataset

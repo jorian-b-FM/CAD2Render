@@ -179,6 +179,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -2976870343164796698, guid: e4139b7174a58034ebee2b4171d231e1,
+        type: 3}
+      propertyPath: managedReferences[7254404686942044169].enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -2976870343164796698, guid: e4139b7174a58034ebee2b4171d231e1,
+        type: 3}
+      propertyPath: managedReferences[7254404686942044169].passFoldout
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -2976870343164796698, guid: e4139b7174a58034ebee2b4171d231e1,
+        type: 3}
+      propertyPath: managedReferences[7254404686942044169].overrideMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: 83ca037eccd395843ad487969af39ecb, type: 2}
     - target: {fileID: 5606210975567302736, guid: e4139b7174a58034ebee2b4171d231e1,
         type: 3}
       propertyPath: m_RootOrder
