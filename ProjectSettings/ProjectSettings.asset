@@ -563,7 +563,7 @@ PlayerSettings:
     PS5: UNITY_POST_PROCESSING_STACK_V2
     QNX: UNITY_POST_PROCESSING_STACK_V2
     Stadia: UNITY_POST_PROCESSING_STACK_V2
-    Standalone: REALTIME_RAYTRACING_SUPPORT;UNITY_POST_PROCESSING_STACK_V2;ENABLE_RAYTRACING;SUBSTANCE_PLUGIN_ENABLED
+    Standalone: REALTIME_RAYTRACING_SUPPORT;UNITY_POST_PROCESSING_STACK_V2;ENABLE_RAYTRACING;SUBSTANCE_PLUGIN_ENABLED;CT_FB
     VisionOS: UNITY_POST_PROCESSING_STACK_V2
     WebGL: UNITY_POST_PROCESSING_STACK_V2
     Windows Store Apps: UNITY_POST_PROCESSING_STACK_V2
@@ -586,7 +586,8 @@ PlayerSettings:
   scriptingRuntimeVersion: 1
   gcIncremental: 0
   gcWBarrierValidation: 0
-  apiCompatibilityLevelPerPlatform: {}
+  apiCompatibilityLevelPerPlatform:
+    Standalone: 3
   editorAssembliesCompatibilityLevel: 1
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
@@ -668,7 +669,7 @@ PlayerSettings:
   qnxGraphicConfPath: 
   apiCompatibilityLevel: 6
   captureStartupLogs: {}
-  activeInputHandler: 0
+  activeInputHandler: 2
   windowsGamepadBackendHint: 0
   cloudProjectId: c79a42dc-6419-402d-aa07-836c8a33838a
   framebufferDepthMemorylessMode: 0

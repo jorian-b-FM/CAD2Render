@@ -89,3 +89,4 @@ out_*.log
 Packages/packages-lock.json
 ExampleData
 .history
+Assets/Packages
