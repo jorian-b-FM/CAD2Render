@@ -12,7 +12,8 @@ using Assets.Scripts.newScene;
 using UnityEngine.UIElements;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using UnityEngine.SceneManagement;
+using FM.Unity;
+using Object = UnityEngine.Object;
 
 //using UnityEngine.Profiling;
 
@@ -65,6 +66,8 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
     private static GameObject renderSettings { get; set; }
     private static GameObject raytracingSettings { get; set; }
     private static GameObject postProcesingSettings { get; set; }
+    
+    public bool IsCapturing => capturing;
 
     // Start is called before the first frame update
     async void Start()
@@ -77,7 +80,7 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
             postProcesingSettings = temp.transform.Find("PostProcessing")?.gameObject;
         }
         
-        var success = await LoadDataset();
+        var success = await LoadDataset(false);
         if (!success)
         {
             C2R.Utility.Quit();
@@ -88,13 +91,13 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
         _initialized = true;
     }
 
-    private async Task<bool> LoadDataset()
+    private async Task<bool> LoadDataset(bool autoCreateDirectory)
     {
         DestroyRenderTextures();
 
         _initialized = false;
         
-        var success = await checkDatasetSettings();
+        var success = await checkDatasetSettings(autoCreateDirectory);
         if (!success)
             return false;
         
@@ -120,9 +123,9 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
         return true;
     }
 
-    public async void ReloadDataset()
+    public async void ReloadDataset(bool autoCreateDirectory)
     {
-        bool success = await LoadDataset();
+        bool success = await LoadDataset(autoCreateDirectory);
         if (!success)
         {
             C2R.Utility.Quit();
@@ -194,7 +197,7 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
         return true;
     }
 
-    private async Task<bool> checkDatasetSettings()
+    private async Task<bool> checkDatasetSettings(bool autoCreateDirectory)
     {
         if (dataset == null)
         {
@@ -218,7 +221,11 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
         if (!Directory.Exists(dataset.outputPath))
         {
-            if (!string.IsNullOrEmpty(dataset.outputPath))
+            if (autoCreateDirectory)
+            {
+                Directory.CreateDirectory(dataset.outputPath);
+            }
+            else
             {
                 var dialog = Dialog.Show("output path",
                     "The output directory does not exists, do you want to create it?\nOutput path: " +
@@ -280,42 +287,62 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
         if (exportHandler != null && capturing)//export handler is not yet created if start script is waiting for user input (create directory popup)
         {
-            if (currentFrame == 0)
-            {
-                Time.timeScale = 10.0f; 
-                mainCamera.enabled = false;
-            }
-            if (currentFrame == dataset.numPhysicsFrames)
-            {
-                Time.timeScale = dataset.stopSimulationTimeCompletly ? 0.0f :  1.0f;
-                mainCamera.enabled = true;
-                PathTracing raytraceSettings;
-                raytracingSettings.GetComponent<Volume>().profile.TryGet<PathTracing>(out raytraceSettings);
-                if (raytraceSettings != null)
-                {
-                    raytraceSettings.maximumSamples.overrideState = true;
-                    raytraceSettings.maximumSamples.value = Math.Max(1, dataset.numRenderFrames - 1);
-                }
-            }
-
-            if (currentFrame == dataset.numRenderFrames + dataset.numPhysicsFrames)
+            if (Tick()) // Returns true on the frame everything should be setup properly
                 StartCoroutine(exportHandler.Capture(getExportObjects()));
-            else if (currentFrame > dataset.numRenderFrames + dataset.numPhysicsFrames) // update randomize the frame after the save frame to make sure save is completed correctly
-            {
-                updateFileCounter();
-                Randomize();
-                currentFrame = 0;
-                mainCamera.enabled = false;
-                return;//dont start frame counter on 1
-            }
-            currentFrame++;
         }
-        else if (currentFrame != -1)
+        
+        // Reset if we didn't tick
+        if (!_tickedThisFrame && currentFrame != -1)
         {
             Time.timeScale = 1.0f;
             mainCamera.enabled = true;
             currentFrame = -1;
         }
+
+        _tickedThisFrame = false;
+    }
+
+    public bool Tick()
+    {
+        _tickedThisFrame = true;
+        
+        // First we disable the camera, and up the timescale, to allow physics to do its work
+        if (currentFrame == 0)
+        {
+            Time.timeScale = 10.0f; 
+            mainCamera.enabled = false;
+        }
+        // once we reach our wanted amount of frames, we reenable the camera, and ensure pathtracing is setup correctly
+        if (currentFrame == dataset.numPhysicsFrames) 
+        {
+            Time.timeScale = dataset.stopSimulationTimeCompletly ? 0.0f :  1.0f;
+            mainCamera.enabled = true;
+            PathTracing raytraceSettings;
+            raytracingSettings.GetComponent<Volume>().profile.TryGet<PathTracing>(out raytraceSettings);
+            if (raytraceSettings != null)
+            {
+                raytraceSettings.maximumSamples.overrideState = true;
+                raytraceSettings.maximumSamples.value = Math.Max(1, dataset.numRenderFrames - 1);
+            }
+        }
+        // Then we wait the wanted amount of frames for rendering
+        if (currentFrame == dataset.numRenderFrames + dataset.numPhysicsFrames)
+        {
+            currentFrame++;
+            return true; // we return true to let users know you can render here
+        }
+        
+        // Once that window has passed, we update our status
+        if (currentFrame > dataset.numRenderFrames + dataset.numPhysicsFrames) // update randomize the frame after the save frame to make sure save is completed correctly
+        {
+            updateFileCounter();
+            Randomize();
+            currentFrame = 0;
+            mainCamera.enabled = false;
+            return false;
+        }
+        currentFrame++;
+        return false;
     }
 
     public List<GameObject> getExportObjects()
@@ -353,6 +380,27 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
         }
         update++;
         setupFalseColorStack();
+    }
+
+    public void StartRecording()
+    {
+        if (!capturing) ToggleRecording();
+    }
+
+    public void StopRecording()
+    {
+        if (capturing) ToggleRecording();
+    }
+    
+    public void ToggleRecording()
+    {
+        capturing = !capturing;
+
+        if (recordButton == null)
+            return;
+        recordButton.text = capturing ? "Stop recording" : "Start recording";
+        recordButton.AddToClassList(capturing ? "RecordButton_Recording" : "RecordButton_NotRecording");
+        recordButton.RemoveFromClassList(!capturing ? "RecordButton_Recording" : "RecordButton_NotRecording");
     }
 
     public void setRenderprofiles()
@@ -545,16 +593,9 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
 
     public void recordButtonClicked()
     {
-        capturing = !capturing;
-
-        if (recordButton == null)
-            return;
-        recordButton.text = capturing ? "Stop recording" : "Start recording";
-        recordButton.AddToClassList(capturing ? "RecordButton_Recording" : "RecordButton_NotRecording");
-        recordButton.RemoveFromClassList(!capturing ? "RecordButton_Recording" : "RecordButton_NotRecording");
+        ToggleRecording();
     }
-
-
+    
     public void updateFileCounter()
     {
         if (imageCounterLabel != null)
@@ -567,7 +608,51 @@ public class MainRandomizer : MonoBehaviour, IDatasetUser<MainRandomizerData>
                 exportHandler.resetFileCounter();
                 return;
             }
-            recordButtonClicked();
+            StopRecording();
         }
     }
+    
+    public bool GetRecordingProgress(out int captured, out int total)
+    {
+        captured = exportHandler.fileCounter;
+        total = dataset.numberOfImages;
+        
+        if (!capturing) return false;
+        
+        return true;
+    }
+
+    public async Task<byte[]> GetPreviewImage()
+    {
+        Randomize();
+        while (!Tick()) // returns true the frame you can capture
+            await Task.Yield(); // wait a frame
+        return RenderTextureToPNGBytes(renderTexture);
+    }
+
+    public string GetOutputPath() => dataset.outputPath;
+    
+    public static byte[] RenderTextureToPNGBytes(RenderTexture rt)
+    {
+        using var rtx = new UtilTexture.ActiveRenderTextureRAII(rt);
+
+        Texture2D tex = new Texture2D(
+            rt.width,
+            rt.height,
+            TextureFormat.RGBA32,
+            false
+        );
+
+        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+        tex.Apply();
+
+        byte[] bytes = tex.EncodeToPNG();
+
+        Destroy(tex);
+
+        return bytes;
+    }
+    
+    private bool _tickedThisFrame;
+
 }

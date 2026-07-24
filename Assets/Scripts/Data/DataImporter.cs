@@ -36,8 +36,8 @@ public static class ConstDataValues
 
 public class DataImporter : MonoBehaviour
 {
-    public bool loadFromFolder;
-    public string folderPathToLoad = "ExampleData/Default";
+    [SerializeField] private bool loadFromFolder;
+    [SerializeField] private string folderPathToLoad = "ExampleData/Default";
 
     private string _fullFolderPath;
 
@@ -140,7 +140,7 @@ public class DataImporter : MonoBehaviour
 
     }
 
-    private async void LoadFromFile(string filePath)
+    public async void LoadFromFile(string filePath, bool autoCreateOutputDirectory = false)
     {
         // Kill all existing resources, to ensure no overlap
         foreach (Transform resource in _fakeResources.transform)
@@ -174,7 +174,7 @@ public class DataImporter : MonoBehaviour
         
         gameObject.SetActive(wasActive || gameObject.activeSelf);
         
-        randomizer.ReloadDataset();
+        randomizer.ReloadDataset(autoCreateOutputDirectory);
     }
 
     private void OnDestroy()

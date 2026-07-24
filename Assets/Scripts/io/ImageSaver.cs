@@ -1,7 +1,10 @@
 //Copyright (c) 2020 Nick Michiels <nick.michiels@uhasselt.be>, Hasselt University, Belgium, All rights reserved.
 
+using System;
 using UnityEngine;
 using System.IO;
+using Object = UnityEngine.Object;
+
 //using Pngcs.Unity;
 
 public class ImageSaver
@@ -85,14 +88,14 @@ public class ImageSaver
 
         RenderTexture.active = oldRT;
 
-        byte[] bytes = null;
-        if (outputExt == Extension.png)
-            bytes = ActiveTexture.EncodeToPNG();
-        else if (outputExt == Extension.jpg)
-            bytes = ImageConversion.EncodeToJPG(ActiveTexture, 100);
-        else if (outputExt == Extension.exr)
-            bytes = ImageConversion.EncodeToEXR(ActiveTexture, Texture2D.EXRFlags.OutputAsFloat);
-
+        byte[] bytes = outputExt switch
+        {
+            Extension.png => ActiveTexture.EncodeToPNG(),
+            Extension.jpg => ActiveTexture.EncodeToJPG(100),
+            Extension.exr => ActiveTexture.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat),
+            _ => throw new InvalidOperationException($"Unsupported save format '{outputExt}'")
+        };
+        
         File.WriteAllBytes(filename + "." + outputExt.ToString(), bytes);
     }
 }
